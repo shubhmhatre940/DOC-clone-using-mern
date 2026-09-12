@@ -42,6 +42,16 @@ const HIGHLIGHT_COLORS = [
   { name: 'Orange', color: '#fce5cd' }
 ];
 
+const FONT_FAMILIES = [
+  { label: 'Arial', value: 'Arial' },
+  { label: 'Times New Roman', value: 'Times New Roman' },
+  { label: 'Georgia', value: 'Georgia' },
+  { label: 'Courier New', value: 'Courier New' },
+  { label: 'Verdana', value: 'Verdana' },
+  { label: 'Calibri', value: 'Calibri' },
+  { label: 'Comic Sans MS', value: 'Comic Sans MS' }
+];
+
 const FONT_SIZES = [
   { label: '10', value: '10px' },
   { label: '11', value: '11px' },
@@ -113,6 +123,20 @@ const EditorToolbar = ({ editor, editable = true }) => {
     if (editor.isActive('heading', { level: 2 })) return 'h2';
     if (editor.isActive('heading', { level: 3 })) return 'h3';
     return 'paragraph';
+  };
+
+  // Handle font family change
+  const handleFontFamilyChange = (e) => {
+    const font = e.target.value;
+    if (!font || font === 'default') {
+      editor.chain().focus().unsetFontFamily().run();
+    } else {
+      editor.chain().focus().setFontFamily(font).run();
+    }
+  };
+
+  const getCurrentFontFamily = () => {
+    return editor.getAttributes('textStyle').fontFamily || 'Arial';
   };
 
   // Handle font size change
@@ -190,6 +214,20 @@ const EditorToolbar = ({ editor, editable = true }) => {
         <option value="h1">Heading 1</option>
         <option value="h2">Heading 2</option>
         <option value="h3">Heading 3</option>
+      </select>
+
+      {/* Font Family Selector */}
+      <select
+        value={getCurrentFontFamily()}
+        onChange={handleFontFamilyChange}
+        className="h-7 max-w-[120px] rounded border border-transparent bg-transparent hover:bg-gray-200 px-1.5 text-xs font-medium text-gray-700 focus:outline-none cursor-pointer truncate"
+        title="Font"
+      >
+        {FONT_FAMILIES.map((font) => (
+          <option key={font.value} value={font.value} style={{ fontFamily: font.value }}>
+            {font.label}
+          </option>
+        ))}
       </select>
 
       {/* Font Size Selector */}

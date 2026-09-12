@@ -28,6 +28,31 @@ const generateHtmlDocument = (title, bodyContent) => {
     ul, ol { padding-left: 24px; margin: 0.5em 0; }
     blockquote { border-left: 3px solid #dadce0; margin: 1em 0; padding-left: 12px; color: #5f6368; }
     mark { background-color: #fef08a; padding: 2px 4px; border-radius: 2px; }
+    .page-break {
+      page-break-after: always;
+      break-after: page;
+      height: 0;
+      margin: 0;
+      border: none;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+    }
+    th, td {
+      border: 1px solid #dadce0;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th {
+      background-color: #f8f9fa;
+      font-weight: 600;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+    }
   </style>
 </head>
 <body>
@@ -92,7 +117,10 @@ export const exportDocument = async (req, res) => {
 
       case 'docx': {
         // html-to-docx expects the body HTML content directly
-        const docHtml = content && content.trim() ? content : '<p></p>';
+        let docHtml = content && content.trim() ? content : '<p></p>';
+        // Replace page break divs with page-break-before style for Word
+        docHtml = docHtml.replace(/<div class="page-break"[^>]*><\/div>/gi, '<br style="page-break-before: always; clear: both;" />');
+
         const rawDocx = await HTMLtoDOCX(docHtml, null, {
           title: docTitle,
           margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 } // 1 inch = 1440 twips

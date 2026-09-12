@@ -6,8 +6,18 @@ import connectDB from './config/db.js';
 import healthRoutes from './routes/healthRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
+import templateRoutes from './routes/templateRoutes.js';
+import commentRoutes from './routes/commentRoutes.js';
+import versionRoutes from './routes/versionRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
+import mediaRoutes from './routes/mediaRoutes.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 import { setupCollabServer } from './services/collabServer.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
@@ -54,6 +64,14 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/documents', versionRoutes);
+app.use('/api/templates', templateRoutes);
+app.use('/api', commentRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/media', mediaRoutes);
+
+// Static uploads serving
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Root route
 app.get('/', (req, res) => {

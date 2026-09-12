@@ -1,10 +1,12 @@
 import express from 'express';
+import multer from 'multer';
 import {
   createDocument,
   getDocuments,
   getDocumentById,
   updateDocument,
-  deleteDocument
+  deleteDocument,
+  uploadWordDocument
 } from '../controllers/documentController.js';
 import {
   addCollaborator,
@@ -18,8 +20,32 @@ import { checkDocAccess } from '../middleware/permissions.js';
 
 const router = express.Router();
 
+// Configure Multer for memory buffer upload (limit 20MB)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }
+});
+
 // All document routes require authentication
 router.use(protect);
+
+// Upload a Word (.docx) document with Multer error handling
+router.post(
+  '/upload',
+  (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        console.error('[Upload MulterError]:', err);
+        return res.status(400).json({ message: `Upload error: ${err.message}` });
+      } else if (err) {
+        console.error('[Upload Unknown Middleware Error]:', err);
+        return res.status(400).json({ message: `Upload error: ${err.message || 'Unknown error'}` });
+      }
+      next();
+    });
+  },
+  uploadWordDocument
+);
 
 router.route('/')
   .post(createDocument)

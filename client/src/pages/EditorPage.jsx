@@ -6,9 +6,29 @@ import { useAuth } from '../context/AuthContext';
 import EditorNavbar from '../components/editor/EditorNavbar';
 import TiptapEditor from '../components/editor/TiptapEditor';
 import ShareModal from '../components/editor/ShareModal';
+import DocumentDetailsModal from '../components/editor/DocumentDetailsModal';
+import ShortcutsModal from '../components/editor/ShortcutsModal';
 import { useAutosave } from '../hooks/useAutosave';
 import { getDocumentById, createDocument, deleteDocument, exportDocument } from '../api/documents';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { getComments, createComment, addReply, updateComment, deleteComment as apiDeleteComment } from '../api/comments';
+import CommentSidebar from '../components/comments/CommentSidebar';
+import VersionHistoryModal from '../components/history/VersionHistoryModal';
+import WordCountModal, { computeStats } from '../components/tools/WordCountModal';
+import PreferencesModal from '../components/tools/PreferencesModal';
+import VoiceTypingWidget from '../components/tools/VoiceTypingWidget';
+import CompareModal from '../components/tools/CompareModal';
+import CitationsModal from '../components/tools/CitationsModal';
+import LinkModal from '../components/insert/LinkModal';
+import SymbolsModal from '../components/insert/SymbolsModal';
+import TableModal from '../components/insert/TableModal';
+import ImageModal from '../components/insert/ImageModal';
+import AudioModal from '../components/insert/AudioModal';
+import ChartModal from '../components/insert/ChartModal';
+import BookmarksModal from '../components/insert/BookmarksModal';
+import BuildingBlocksModal from '../components/insert/BuildingBlocksModal';
+import { getUserPreferences } from '../api/preferences';
+import * as decoding from 'lib0/decoding';
+import { Loader2, ArrowLeft, FileText } from 'lucide-react';
 
 // Google-inspired pastel colors for collaborator cursors
 const USER_COLORS = [
@@ -40,6 +60,8 @@ const EditorPage = () => {
   const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting' | 'connected' | 'disconnected'
   const [activeUsers, setActiveUsers] = useState([]);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
 
   // Menu bar and view states
   const [editor, setEditor] = useState(null);
@@ -47,6 +69,69 @@ const EditorPage = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [exportLoadingFormat, setExportLoadingFormat] = useState(null);
+
+  // Phase 5: Comments state
+  const [comments, setComments] = useState([]);
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+  const [newCommentDraft, setNewCommentDraft] = useState(null);
+  const [highlightedCommentId, setHighlightedCommentId] = useState(null);
+  const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
+
+  // Tools & Insert menu states
+  const [isWordCountOpen, setIsWordCountOpen] = useState(false);
+  const [showLiveWordCount, setShowLiveWordCount] = useState(false);
+  const [showLineNumbers, setShowLineNumbers] = useState(false);
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
+  const [preferencesInitialTab, setPreferencesInitialTab] = useState('preferences');
+  const [isVoiceTyping, setIsVoiceTyping] = useState(false);
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
+  const [isCitationsOpen, setIsCitationsOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [isSymbolsModalOpen, setIsSymbolsModalOpen] = useState(false);
+  const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
+  const [isChartModalOpen, setIsChartModalOpen] = useState(false);
+  const [isBookmarksModalOpen, setIsBookmarksModalOpen] = useState(false);
+  const [isBuildingBlocksOpen, setIsBuildingBlocksOpen] = useState(false);
+  const [liveStats, setLiveStats] = useState({ words: 0, characters: 0, pages: 0 });
+
+  // Load user preferences on mount
+  useEffect(() => {
+    getUserPreferences()
+      .then((res) => {
+        if (res?.preferences) {
+          if (typeof res.preferences.showLineNumbers === 'boolean') {
+            setShowLineNumbers(res.preferences.showLineNumbers);
+          }
+          if (res.preferences.theme === 'high-contrast') {
+            document.body.classList.add('theme-high-contrast');
+          } else {
+            document.body.classList.remove('theme-high-contrast');
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load user preferences:', err);
+      });
+  }, []);
+
+  // Update live stats when editor content changes
+  useEffect(() => {
+    if (!editor) return;
+    const handleUpdate = () => {
+      if (showLiveWordCount) {
+        setLiveStats(computeStats(editor.getText()));
+      }
+    };
+    editor.on('update', handleUpdate);
+    if (showLiveWordCount) {
+      setLiveStats(computeStats(editor.getText()));
+    }
+    return () => {
+      editor.off('update', handleUpdate);
+    };
+  }, [editor, showLiveWordCount]);
 
   // Keep Y.Doc stable per docId and clean up only on doc change or unmount
   const ydoc = useMemo(() => new Y.Doc(), [id]);
@@ -96,6 +181,14 @@ const EditorPage = () => {
       setDocumentData(data);
       setTitle(data.title || 'Untitled document');
       setContent(data.content || '');
+
+      // Phase 5: Load document comments
+      try {
+        const docComments = await getComments(id);
+        setComments(docComments || []);
+      } catch (commentErr) {
+        console.warn('Failed to fetch initial comments:', commentErr);
+      }
     } catch (err) {
       console.error('Error fetching document:', err);
       setError(err.response?.data?.message || 'Failed to load document');
@@ -168,6 +261,38 @@ const EditorPage = () => {
 
     wsProvider.awareness.on('change', handleAwarenessChange);
 
+    // Phase 5: Listen for real-time comment broadcast (messageCustom = 3)
+    wsProvider.messageHandlers[3] = (encoder, decoder) => {
+      try {
+        const raw = decoding.readVarString(decoder);
+        const event = JSON.parse(raw);
+        if (!event || !event.type) return;
+
+        if (event.type === 'comment:new') {
+          setComments((prev) => {
+            if (prev.some((c) => c._id === event.comment._id)) return prev;
+            return [event.comment, ...prev];
+          });
+        } else if (event.type === 'comment:reply' || event.type === 'comment:update') {
+          setComments((prev) =>
+            prev.map((c) => (c._id === event.comment._id ? event.comment : c))
+          );
+        } else if (event.type === 'comment:delete') {
+          setComments((prev) => prev.filter((c) => c._id !== event.commentId));
+        } else if (event.type === 'version:restored') {
+          if (event.documentId === id) {
+            setTitle(event.title || 'Untitled document');
+            setContent(event.content || '');
+            if (editor) {
+              editor.commands.setContent(event.content || '');
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Yjs Provider Custom Message Error]:', err);
+      }
+    };
+
     return () => {
       wsProvider.awareness.off('change', handleAwarenessChange);
       wsProvider.destroy();
@@ -185,6 +310,76 @@ const EditorPage = () => {
     }
   }, [provider, user, currentUser]);
 
+  // Phase 5: Comment action handlers
+  const handleCreateComment = async (data) => {
+    try {
+      const created = await createComment(id, data);
+      setComments((prev) => {
+        if (prev.some((c) => c._id === created._id)) return prev;
+        return [created, ...prev];
+      });
+      setNewCommentDraft(null);
+    } catch (err) {
+      console.error('Failed to post comment:', err);
+      alert(err.response?.data?.message || 'Failed to post comment');
+    }
+  };
+
+  const handleReplyComment = async (commentId, text) => {
+    try {
+      const updated = await addReply(commentId, text);
+      setComments((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
+    } catch (err) {
+      console.error('Failed to add reply:', err);
+      alert(err.response?.data?.message || 'Failed to add reply');
+    }
+  };
+
+  const handleResolveComment = async (commentId) => {
+    try {
+      const updated = await updateComment(commentId, { resolved: true });
+      setComments((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
+    } catch (err) {
+      console.error('Failed to resolve comment:', err);
+      alert(err.response?.data?.message || 'Failed to resolve comment');
+    }
+  };
+
+  const handleReopenComment = async (commentId) => {
+    try {
+      const updated = await updateComment(commentId, { resolved: false });
+      setComments((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
+    } catch (err) {
+      console.error('Failed to reopen comment:', err);
+      alert(err.response?.data?.message || 'Failed to reopen comment');
+    }
+  };
+
+  const handleEditComment = async (commentId, text) => {
+    try {
+      const updated = await updateComment(commentId, { text });
+      setComments((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
+    } catch (err) {
+      console.error('Failed to edit comment:', err);
+      alert(err.response?.data?.message || 'Failed to edit comment');
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await apiDeleteComment(commentId);
+      setComments((prev) => prev.filter((c) => c._id !== commentId));
+    } catch (err) {
+      console.error('Failed to delete comment:', err);
+      alert(err.response?.data?.message || 'Failed to delete comment');
+    }
+  };
+
+  const handleStartComment = ({ selectedText, selectionRange }) => {
+    setNewCommentDraft({ selectedText, selectionRange });
+    setIsCommentsOpen(true);
+  };
+
   // Content change callback from editor (triggers debounced auto-save)
   const handleContentChange = (newContent) => {
     setContent(newContent);
@@ -197,18 +392,83 @@ const EditorPage = () => {
     saveNow();
   };
 
-  // Keyboard shortcut listener: Ctrl + S / Cmd + S (optional manual save trigger)
+  // Global keyboard shortcuts listener: Ctrl+S (Save), Ctrl+P (Print), Ctrl+/ (Shortcuts), Ctrl+Shift+C (Word Count), Ctrl+Shift+S (Voice Typing), Ctrl+K (Link)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      const isCtrl = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+
+      // Word count: Ctrl + Shift + C
+      if (isCtrl && e.shiftKey && key === 'c') {
+        e.preventDefault();
+        setIsWordCountOpen((prev) => !prev);
+      }
+      // Voice typing: Ctrl + Shift + S
+      else if (isCtrl && e.shiftKey && key === 's') {
+        e.preventDefault();
+        setIsVoiceTyping((prev) => !prev);
+      }
+      // Manual save: Ctrl + S / Cmd + S (without shift)
+      else if (isCtrl && !e.shiftKey && key === 's') {
         e.preventDefault();
         saveNow();
+      }
+      // Hyperlink: Ctrl + K / Cmd + K
+      else if (isCtrl && !e.shiftKey && key === 'k') {
+        e.preventDefault();
+        setIsLinkModalOpen(true);
+      }
+      // Print: Ctrl + P / Cmd + P
+      else if (isCtrl && !e.shiftKey && key === 'p') {
+        e.preventDefault();
+        window.print();
+      }
+      // Shortcuts help: Ctrl + / / Cmd + /
+      else if (isCtrl && e.key === '/') {
+        e.preventDefault();
+        setIsShortcutsModalOpen((prev) => !prev);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [saveNow]);
+
+  const handleInsertHorizontalLine = () => {
+    editor?.chain().focus().setHorizontalRule().run();
+  };
+
+  const handleInsertPageBreak = () => {
+    editor?.chain().focus().insertContent('<div class="page-break" data-break="page"></div><p></p>').run();
+  };
+
+  const handleProofread = () => {
+    if (!editor) return;
+    editor.chain().focus().run();
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-xs px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2';
+    toast.innerHTML = '<span>✓ Spellcheck active — misspelled words are underlined in red</span>';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3500);
+  };
+
+  const handleOpenAccessibility = () => {
+    setPreferencesInitialTab('preferences');
+    setIsPreferencesOpen(true);
+  };
+
+  const handlePreferencesUpdated = (data) => {
+    if (data?.preferences) {
+      if (typeof data.preferences.showLineNumbers === 'boolean') {
+        setShowLineNumbers(data.preferences.showLineNumbers);
+      }
+      if (data.preferences.theme === 'high-contrast') {
+        document.body.classList.add('theme-high-contrast');
+      } else {
+        document.body.classList.remove('theme-high-contrast');
+      }
+    }
+  };
 
   // Fullscreen event listener
   useEffect(() => {
@@ -381,6 +641,10 @@ const EditorPage = () => {
         connectionStatus={connectionStatus}
         onOpenShare={() => setIsShareModalOpen(true)}
         isEditable={isEditable}
+        // Phase 5: Comments toggle & badge
+        commentsCount={comments.filter((c) => !c.resolved).length}
+        isCommentsOpen={isCommentsOpen}
+        onToggleComments={() => setIsCommentsOpen((prev) => !prev)}
         // Menu bar props
         onMakeCopy={handleMakeCopy}
         onDelete={handleDelete}
@@ -399,19 +663,109 @@ const EditorPage = () => {
         onToggleFullscreen={handleToggleFullscreen}
         zoomLevel={zoomLevel}
         onSetZoom={setZoomLevel}
+        onOpenDetails={() => setIsDetailsModalOpen(true)}
+        onOpenVersionHistory={() => setIsVersionHistoryOpen(true)}
+        onPrint={() => window.print()}
+        onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
+        // Insert actions
+        onInsertLink={() => setIsLinkModalOpen(true)}
+        onInsertSymbol={() => setIsSymbolsModalOpen(true)}
+        onInsertHorizontalLine={handleInsertHorizontalLine}
+        onInsertImage={() => setIsImageModalOpen(true)}
+        onInsertTable={() => setIsTableModalOpen(true)}
+        onInsertAudio={() => setIsAudioModalOpen(true)}
+        onInsertChart={() => setIsChartModalOpen(true)}
+        onInsertBookmark={() => setIsBookmarksModalOpen(true)}
+        onInsertPageBreak={handleInsertPageBreak}
+        onInsertBuildingBlock={() => setIsBuildingBlocksOpen(true)}
+        // Tools actions
+        onOpenWordCount={() => setIsWordCountOpen(true)}
+        showLineNumbers={showLineNumbers}
+        onToggleLineNumbers={() => setShowLineNumbers((prev) => !prev)}
+        onProofread={handleProofread}
+        isVoiceTyping={isVoiceTyping}
+        onToggleVoiceTyping={() => setIsVoiceTyping((prev) => !prev)}
+        onOpenCompare={() => setIsCompareOpen(true)}
+        onOpenCitations={() => setIsCitationsOpen(true)}
+        onOpenPreferences={() => {
+          setPreferencesInitialTab('preferences');
+          setIsPreferencesOpen(true);
+        }}
+        onOpenAccessibility={handleOpenAccessibility}
       />
 
-      {/* Editor Body with Yjs Collaboration & Presence Cursors */}
-      <TiptapEditor
-        initialContent={documentData?.content || ''}
-        onContentChange={handleContentChange}
-        ydoc={ydoc}
-        provider={provider}
-        currentUser={currentUser}
-        isEditable={isEditable}
-        onEditorReady={setEditor}
-        showToolbar={showToolbar}
-        zoomLevel={zoomLevel}
+      {/* Main Workspace Area with Editor & Comments Sidebar */}
+      <div className="flex flex-1 overflow-hidden relative">
+        <TiptapEditor
+          initialContent={documentData?.content || ''}
+          onContentChange={handleContentChange}
+          ydoc={ydoc}
+          provider={provider}
+          currentUser={currentUser}
+          isEditable={isEditable}
+          onEditorReady={setEditor}
+          showToolbar={showToolbar}
+          zoomLevel={zoomLevel}
+          showLineNumbers={showLineNumbers}
+          onStartComment={handleStartComment}
+        />
+
+        {/* Floating Live Word Count Badge */}
+        {showLiveWordCount && (
+          <div
+            onClick={() => setIsWordCountOpen(true)}
+            className="absolute bottom-4 left-6 z-20 bg-white/95 backdrop-blur-sm border border-gray-200 shadow-md rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:shadow-lg transition cursor-pointer select-none"
+            title="Click to view full word count statistics"
+          >
+            <FileText className="w-3.5 h-3.5 text-blue-600" />
+            <span>{liveStats.words.toLocaleString()} words</span>
+            <span className="text-gray-300">|</span>
+            <span className="text-gray-500">{liveStats.characters.toLocaleString()} chars</span>
+          </div>
+        )}
+
+        {/* Voice Typing Widget Floating Pill */}
+        <VoiceTypingWidget
+          isOpen={isVoiceTyping}
+          onClose={() => setIsVoiceTyping(false)}
+          editor={editor}
+        />
+
+        <CommentSidebar
+          isOpen={isCommentsOpen}
+          onClose={() => setIsCommentsOpen(false)}
+          comments={comments}
+          currentUserId={user?._id}
+          userRole={documentData?.currentUserRole || 'owner'}
+          onResolve={handleResolveComment}
+          onReopen={handleReopenComment}
+          onReply={handleReplyComment}
+          onDelete={handleDeleteComment}
+          onEdit={handleEditComment}
+          newCommentDraft={newCommentDraft}
+          onCancelNewComment={() => setNewCommentDraft(null)}
+          onCreateComment={handleCreateComment}
+          highlightedCommentId={highlightedCommentId}
+          onSelectComment={setHighlightedCommentId}
+        />
+      </div>
+
+      {/* Version History Modal (Phase 5 Feature 2) */}
+      <VersionHistoryModal
+        isOpen={isVersionHistoryOpen}
+        onClose={() => setIsVersionHistoryOpen(false)}
+        docId={id}
+        currentTitle={title}
+        currentContent={content}
+        canRestore={isEditable}
+        onRestoreSuccess={(restoredDoc) => {
+          setTitle(restoredDoc.title || 'Untitled document');
+          setContent(restoredDoc.content || '');
+          if (editor) {
+            editor.commands.setContent(restoredDoc.content || '');
+          }
+          saveNow();
+        }}
       />
 
       {/* Google Docs Share Modal */}
@@ -421,6 +775,100 @@ const EditorPage = () => {
         docId={id}
         docTitle={title}
         isOwner={!documentData?.currentUserRole || documentData?.currentUserRole === 'owner'}
+      />
+
+      {/* Document Details Modal (Feature 1) */}
+      <DocumentDetailsModal
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+        documentData={documentData}
+        title={title}
+        content={content}
+      />
+
+      {/* Keyboard Shortcuts Modal (Feature 3) */}
+      <ShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
+      />
+
+      {/* Tools Modals */}
+      <WordCountModal
+        isOpen={isWordCountOpen}
+        onClose={() => setIsWordCountOpen(false)}
+        editor={editor}
+        showLiveCounter={showLiveWordCount}
+        onToggleLiveCounter={() => setShowLiveWordCount((prev) => !prev)}
+      />
+
+      <PreferencesModal
+        isOpen={isPreferencesOpen}
+        onClose={() => setIsPreferencesOpen(false)}
+        initialTab={preferencesInitialTab}
+        onPreferencesUpdated={handlePreferencesUpdated}
+      />
+
+      <CompareModal
+        isOpen={isCompareOpen}
+        onClose={() => setIsCompareOpen(false)}
+        currentDocId={id}
+        currentDocTitle={title}
+        currentContent={content}
+      />
+
+      <CitationsModal
+        isOpen={isCitationsOpen}
+        onClose={() => setIsCitationsOpen(false)}
+        editor={editor}
+      />
+
+      {/* Insert Modals */}
+      <LinkModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        editor={editor}
+      />
+
+      <SymbolsModal
+        isOpen={isSymbolsModalOpen}
+        onClose={() => setIsSymbolsModalOpen(false)}
+        editor={editor}
+      />
+
+      <TableModal
+        isOpen={isTableModalOpen}
+        onClose={() => setIsTableModalOpen(false)}
+        editor={editor}
+      />
+
+      <ImageModal
+        isOpen={isImageModalOpen}
+        onClose={() => setIsImageModalOpen(false)}
+        editor={editor}
+      />
+
+      <AudioModal
+        isOpen={isAudioModalOpen}
+        onClose={() => setIsAudioModalOpen(false)}
+        editor={editor}
+      />
+
+      <ChartModal
+        isOpen={isChartModalOpen}
+        onClose={() => setIsChartModalOpen(false)}
+        editor={editor}
+      />
+
+      <BookmarksModal
+        isOpen={isBookmarksModalOpen}
+        onClose={() => setIsBookmarksModalOpen(false)}
+        editor={editor}
+      />
+
+      <BuildingBlocksModal
+        isOpen={isBuildingBlocksOpen}
+        onClose={() => setIsBuildingBlocksOpen(false)}
+        editor={editor}
       />
     </div>
   );

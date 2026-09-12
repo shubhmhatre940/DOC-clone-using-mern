@@ -11,8 +11,10 @@ import {
   CloudOff,
   Lock,
   Save,
-  Share2
+  Share2,
+  MessageSquare
 } from 'lucide-react';
+import NotificationBell from '../notifications/NotificationBell';
 
 const EditorNavbar = ({
   title,
@@ -24,6 +26,9 @@ const EditorNavbar = ({
   connectionStatus = 'connected',
   onOpenShare,
   isEditable = true,
+  commentsCount = 0,
+  onToggleComments,
+  isCommentsOpen = false,
   // Menu bar props
   onMakeCopy,
   onDelete,
@@ -41,7 +46,33 @@ const EditorNavbar = ({
   isFullscreen = false,
   onToggleFullscreen,
   zoomLevel = 100,
-  onSetZoom
+  onSetZoom,
+  onOpenDetails,
+  onOpenVersionHistory,
+  onPrint,
+  onOpenShortcuts,
+  // Insert actions
+  onInsertLink,
+  onInsertSymbol,
+  onInsertHorizontalLine,
+  onInsertImage,
+  onInsertTable,
+  onInsertAudio,
+  onInsertChart,
+  onInsertBookmark,
+  onInsertPageBreak,
+  onInsertBuildingBlock,
+  // Tools actions
+  onOpenWordCount,
+  showLineNumbers = false,
+  onToggleLineNumbers,
+  onProofread,
+  isVoiceTyping = false,
+  onToggleVoiceTyping,
+  onOpenCompare,
+  onOpenCitations,
+  onOpenPreferences,
+  onOpenAccessibility
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [localTitle, setLocalTitle] = useState(title || 'Untitled document');
@@ -144,13 +175,15 @@ const EditorNavbar = ({
                   </span>
                 )}
                 {saveStatus === 'saved' && (
-                  <span
-                    className="flex items-center gap-1.5 text-gray-500 animate-in fade-in duration-300"
-                    title="All changes saved to Drive"
+                  <button
+                    type="button"
+                    onClick={onOpenVersionHistory}
+                    className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 transition cursor-pointer animate-in fade-in duration-300"
+                    title="All changes saved. Click to view version history"
                   >
                     <CloudCheck className="w-4 h-4 text-gray-600 shrink-0" />
                     <span className="hidden sm:inline">All changes saved</span>
-                  </span>
+                  </button>
                 )}
                 {saveStatus === 'unsaved' && (
                   <span
@@ -194,6 +227,32 @@ const EditorNavbar = ({
               onToggleFullscreen={onToggleFullscreen}
               zoomLevel={zoomLevel}
               onSetZoom={onSetZoom}
+              onOpenDetails={onOpenDetails}
+              onOpenVersionHistory={onOpenVersionHistory}
+              onPrint={onPrint}
+              onOpenShortcuts={onOpenShortcuts}
+              // Insert actions
+              onInsertLink={onInsertLink}
+              onInsertSymbol={onInsertSymbol}
+              onInsertHorizontalLine={onInsertHorizontalLine}
+              onInsertImage={onInsertImage}
+              onInsertTable={onInsertTable}
+              onInsertAudio={onInsertAudio}
+              onInsertChart={onInsertChart}
+              onInsertBookmark={onInsertBookmark}
+              onInsertPageBreak={onInsertPageBreak}
+              onInsertBuildingBlock={onInsertBuildingBlock}
+              // Tools actions
+              onOpenWordCount={onOpenWordCount}
+              showLineNumbers={showLineNumbers}
+              onToggleLineNumbers={onToggleLineNumbers}
+              onProofread={onProofread}
+              isVoiceTyping={isVoiceTyping}
+              onToggleVoiceTyping={onToggleVoiceTyping}
+              onOpenCompare={onOpenCompare}
+              onOpenCitations={onOpenCitations}
+              onOpenPreferences={onOpenPreferences}
+              onOpenAccessibility={onOpenAccessibility}
             />
           </div>
         </div>
@@ -215,6 +274,28 @@ const EditorNavbar = ({
               <span className="hidden md:inline">Save</span>
             </button>
           )}
+
+          {/* Comments History / Toggle Button */}
+          <button
+            type="button"
+            onClick={onToggleComments}
+            className={`relative p-2 rounded-full transition cursor-pointer ${
+              isCommentsOpen
+                ? 'bg-blue-100 text-blue-700'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+            title="Open comments (Ctrl+Alt+M)"
+          >
+            <MessageSquare className="w-4 h-4" />
+            {commentsCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center shadow-xs">
+                {commentsCount}
+              </span>
+            )}
+          </button>
+
+          {/* In-App Notifications Bell */}
+          <NotificationBell />
 
           {/* Share Button (Google Docs Blue) */}
           <button

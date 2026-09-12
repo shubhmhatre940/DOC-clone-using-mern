@@ -58,3 +58,32 @@ export const exportDocument = async (id, format) => {
   return response;
 };
 
+/**
+  * Upload a Word document (.docx)
+  * @param {FormData} formData - FormData containing 'file'
+  */
+export const uploadDocument = async (formData) => {
+  // Let the browser automatically configure 'multipart/form-data; boundary=...'
+  const response = await API.post('/documents/upload', formData);
+  return response.data;
+};
+
+/**
+ * Fetch available document templates
+ */
+export const getTemplates = async () => {
+  const response = await API.get('/templates');
+  return response.data;
+};
+
+/**
+ * Fetch a single template by ID
+ * @param {string} id - Template ID
+ */
+export const getTemplateById = async (id) => {
+  const response = await API.get(`/templates/${id}`);
+  return response.data;
+};
+
+
+

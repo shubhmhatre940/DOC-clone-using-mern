@@ -1,4 +1,6 @@
 import Document from '../models/Document.js';
+import mammoth from 'mammoth';
+import { createAutoSnapshotIfNeeded } from './versionController.js';
 
 /**
  * @desc    Create a new blank document
@@ -14,6 +16,9 @@ export const createDocument = async (req, res) => {
       content: content !== undefined ? content : '',
       owner: req.user._id
     });
+
+    // Create initial version snapshot asynchronously
+    createAutoSnapshotIfNeeded(document._id, document.title, document.content, req.user._id);
 
     return res.status(201).json(document);
   } catch (error) {
@@ -153,6 +158,10 @@ export const updateDocument = async (req, res) => {
     }
 
     const updatedDocument = await document.save();
+
+    // Trigger auto-snapshot if enough time has passed
+    createAutoSnapshotIfNeeded(updatedDocument._id, updatedDocument.title, updatedDocument.content, req.user._id);
+
     return res.json(updatedDocument);
   } catch (error) {
     console.error('Update document error:', error);
@@ -193,3 +202,61 @@ export const deleteDocument = async (req, res) => {
     return res.status(500).json({ message: error.message || 'Failed to delete document' });
   }
 };
+
+/**
+ * @desc    Upload a Word (.docx) document, convert to HTML via mammoth, and save as new document
+ * @route   POST /api/documents/upload
+ * @access  Private
+ */
+export const uploadWordDocument = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Please select a Word document (.docx) to upload' });
+    }
+
+    // Validate filename extension
+    const originalName = req.file.originalname || 'Uploaded document.docx';
+    if (!originalName.toLowerCase().endsWith('.docx')) {
+      return res.status(400).json({
+        message: 'Could not read this file — only valid .docx files are supported'
+      });
+    }
+
+    // Convert Word .docx buffer to clean HTML using mammoth
+    let convertedHtml = '';
+    try {
+      console.log(`[Upload DOCX] Received file: ${originalName}, buffer size: ${req.file.buffer.length} bytes`);
+      const result = await mammoth.convertToHtml({ buffer: req.file.buffer });
+      convertedHtml = result.value || '<p></p>';
+      console.log(`[Upload DOCX] Converted HTML length: ${convertedHtml.length} characters`);
+      if (result.messages && result.messages.length > 0) {
+        console.log('[Mammoth Conversion Messages]:', result.messages);
+      }
+    } catch (parseErr) {
+      console.error('[Upload DOCX] Mammoth parsing error details:', parseErr);
+      const detail = parseErr?.message ? ` (${parseErr.message})` : '';
+      return res.status(400).json({
+        message: `Could not read this file — please make sure it is a valid, uncorrupted .docx file${detail}`
+      });
+    }
+
+    // Derive title from filename
+    const docTitle = originalName.replace(/\.docx$/i, '').trim() || 'Imported Document';
+
+    // Create new document in database owned by current user
+    const document = await Document.create({
+      title: docTitle,
+      content: convertedHtml,
+      owner: req.user._id
+    });
+    console.log(`[Upload DOCX] Created document ${document._id} with title "${docTitle}"`);
+
+    return res.status(201).json(document);
+  } catch (error) {
+    console.error('Upload document error:', error);
+    return res.status(500).json({
+      message: error.message || 'Failed to upload and process document'
+    });
+  }
+};
+

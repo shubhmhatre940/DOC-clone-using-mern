@@ -21,6 +21,17 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Password is required'],
       minlength: [6, 'Password must be at least 6 characters']
+    },
+    preferences: {
+      defaultFont: { type: String, default: 'Arial' },
+      defaultFontSize: { type: String, default: '11pt' },
+      showLineNumbers: { type: Boolean, default: false },
+      theme: { type: String, default: 'light' }
+    },
+    notificationPreferences: {
+      emailOnShare: { type: Boolean, default: true },
+      emailOnComment: { type: Boolean, default: true },
+      emailOnReply: { type: Boolean, default: true }
     }
   },
   {

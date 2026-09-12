@@ -109,3 +109,44 @@ export const getMe = async (req, res) => {
     return res.status(500).json({ message: error.message || 'Server error fetching user profile' });
   }
 };
+
+/**
+ * @desc    Update user preferences and notification settings
+ * @route   PUT /api/auth/preferences
+ * @access  Private
+ */
+export const updatePreferences = async (req, res) => {
+  try {
+    const { preferences, notificationPreferences } = req.body;
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (preferences) {
+      user.preferences = {
+        ...user.preferences?.toObject(),
+        ...preferences
+      };
+    }
+
+    if (notificationPreferences) {
+      user.notificationPreferences = {
+        ...user.notificationPreferences?.toObject(),
+        ...notificationPreferences
+      };
+    }
+
+    await user.save();
+
+    return res.json({
+      message: 'Preferences updated successfully',
+      preferences: user.preferences,
+      notificationPreferences: user.notificationPreferences
+    });
+  } catch (error) {
+    console.error('updatePreferences error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to update preferences' });
+  }
+};

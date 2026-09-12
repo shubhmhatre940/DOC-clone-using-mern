@@ -1,5 +1,6 @@
 import Document from '../models/Document.js';
 import User from '../models/User.js';
+import { createNotification } from '../services/notificationService.js';
 
 /**
  * @desc    Add or update a collaborator's role on a document
@@ -46,6 +47,15 @@ export const addCollaborator = async (req, res) => {
     }
 
     await document.save();
+
+    // Create in-app notification for the invited/updated user
+    createNotification({
+      userId: targetUser._id,
+      senderId: req.user._id,
+      type: 'share',
+      documentId: document._id,
+      message: `${req.user.name || 'Someone'} shared "${document.title}" with you as ${assignedRole}`
+    });
 
     const updatedDoc = await Document.findById(document._id)
       .populate('owner', 'name email')

@@ -15,13 +15,16 @@
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #dadce0;
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #bdc1c6;
 }
@@ -130,3 +133,197 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+/* Feature 2: Clean Document Print Styles (@media print) */
+@media print {
+  @page {
+    margin: 1in;
+    size: auto;
+  }
+
+  /* Reset body and background */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 12pt !important;
+  }
+
+  /* Hide all UI navigation, toolbars, buttons, modals, and indicators */
+  header,
+  nav,
+  .sticky,
+  button,
+  [role="dialog"],
+  .fixed,
+  .collaboration-cursor__caret,
+  .collaboration-cursor__label {
+    display: none !important;
+  }
+
+  /* Reset container layout to flow naturally across pages */
+  .h-screen,
+  .overflow-hidden,
+  .overflow-y-auto,
+  .overflow-auto {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  /* Flatten the paper sheet to fill print page without borders or shadows */
+  div:has(> .tiptap),
+  .tiptap {
+    max-width: 100% !important;
+    width: 100% !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    transform: none !important;
+    background: transparent !important;
+  }
+
+  .tiptap p,
+  .tiptap h1,
+  .tiptap h2,
+  .tiptap h3,
+  .tiptap li {
+    page-break-inside: avoid;
+  }
+
+  .page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+    height: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    display: block !important;
+  }
+}
+
+/* TipTap Table Styles */
+.tiptap table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1.25rem 0;
+  overflow: hidden;
+}
+
+.tiptap table td,
+.tiptap table th {
+  min-width: 1em;
+  border: 1px solid #dadce0;
+  padding: 8px 12px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.tiptap table th {
+  font-weight: 600;
+  text-align: left;
+  background-color: #f8f9fa;
+}
+
+.tiptap table .selectedCell:after {
+  z-index: 2;
+  position: absolute;
+  content: "";
+  left: 0; right: 0; top: 0; bottom: 0;
+  background: rgba(66, 133, 244, 0.15);
+  pointer-events: none;
+}
+
+/* Page Break styling in editor */
+.page-break {
+  display: block;
+  width: 100%;
+  height: 24px;
+  margin: 24px 0;
+  position: relative;
+  border-top: 2px dashed #9ca3af;
+}
+
+.page-break::after {
+  content: "Page Break";
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffffff;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+  border-radius: 9999px;
+}
+
+/* Line Numbers Feature */
+.show-line-numbers {
+  counter-reset: line-number;
+}
+
+.show-line-numbers > p,
+.show-line-numbers > h1,
+.show-line-numbers > h2,
+.show-line-numbers > h3,
+.show-line-numbers > ul,
+.show-line-numbers > ol,
+.show-line-numbers > blockquote,
+.show-line-numbers > table {
+  position: relative;
+  counter-increment: line-number;
+}
+
+.show-line-numbers > p::before,
+.show-line-numbers > h1::before,
+.show-line-numbers > h2::before,
+.show-line-numbers > h3::before,
+.show-line-numbers > ul::before,
+.show-line-numbers > ol::before,
+.show-line-numbers > blockquote::before,
+.show-line-numbers > table::before {
+  content: counter(line-number);
+  position: absolute;
+  left: -2.75rem;
+  width: 2rem;
+  text-align: right;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #9ca3af;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* High Contrast Accessibility Mode */
+body.theme-high-contrast {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+body.theme-high-contrast .tiptap {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #ffff00 !important;
+}
+
+body.theme-high-contrast .page-break {
+  border-top-color: #ffff00 !important;
+}
+
+body.theme-high-contrast .page-break::after {
+  background: #000000 !important;
+  color: #ffff00 !important;
+  border-color: #ffff00 !important;
+}
+
+body.theme-high-contrast .show-line-numbers > *::before {
+  color: #ffff00 !important;
+}

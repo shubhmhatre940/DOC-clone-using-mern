@@ -9,6 +9,7 @@ import {
   User,
   FileText
 } from 'lucide-react';
+import NotificationBell from '../notifications/NotificationBell';
 
 const Navbar = ({ searchQuery, setSearchQuery }) => {
   const { user, logout } = useAuth();
@@ -90,10 +91,13 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
         </div>
       </div>
 
-      {/* Right: User Avatar & Dropdown */}
-      <div className="relative flex items-center" ref={dropdownRef}>
-        <button
-          onClick={() => setDropdownOpen(!dropdownOpen)}
+      {/* Right: Notifications & User Avatar Dropdown */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        <NotificationBell />
+
+        <div className="relative flex items-center" ref={dropdownRef}>
+          <button
+            onClick={() => setDropdownOpen(!dropdownOpen)}
           className="flex items-center justify-center w-9 h-9 rounded-full bg-purple-700 text-white font-medium text-sm hover:ring-4 hover:ring-purple-100 focus:outline-none transition"
           title={`Google Account: ${user?.name || 'User'}`}
         >
@@ -122,7 +126,8 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
           </div>
         )}
       </div>
-    </header>
+    </div>
+  </header>
   );
 };
 

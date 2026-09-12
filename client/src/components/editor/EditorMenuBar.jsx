@@ -13,7 +13,30 @@ import {
   Minimize2,
   ZoomIn,
   ChevronRight,
-  Loader2
+  Loader2,
+  Info,
+  Printer,
+  Keyboard,
+  History,
+  Image as ImageIcon,
+  Table as TableIcon,
+  BarChart3,
+  Mic,
+  Volume2,
+  Minus,
+  Link,
+  Bookmark,
+  FileCode,
+  LayoutGrid,
+  FileText,
+  Settings,
+  Sliders,
+  SpellCheck,
+  GitCompare,
+  Quote,
+  SplitSquareVertical,
+  Activity,
+  Music
 } from 'lucide-react';
 
 const EditorMenuBar = ({
@@ -25,6 +48,9 @@ const EditorMenuBar = ({
   exportLoadingFormat,
   canDelete = true,
   canEdit = true,
+  onOpenDetails,
+  onOpenVersionHistory,
+  onPrint,
 
   // Edit actions
   onUndo,
@@ -40,9 +66,36 @@ const EditorMenuBar = ({
   isFullscreen = false,
   onToggleFullscreen,
   zoomLevel = 100,
-  onSetZoom
+  onSetZoom,
+
+  // Insert actions
+  onInsertLink,
+  onInsertSymbol,
+  onInsertHorizontalLine,
+  onInsertImage,
+  onInsertTable,
+  onInsertAudio,
+  onInsertChart,
+  onInsertBookmark,
+  onInsertPageBreak,
+  onInsertBuildingBlock,
+
+  // Tools actions
+  onOpenWordCount,
+  showLineNumbers = false,
+  onToggleLineNumbers,
+  onProofread,
+  isVoiceTyping = false,
+  onToggleVoiceTyping,
+  onOpenCompare,
+  onOpenCitations,
+  onOpenPreferences,
+  onOpenAccessibility,
+
+  // Help actions
+  onOpenShortcuts
 }) => {
-  const [activeMenu, setActiveMenu] = useState(null); // 'File' | 'Edit' | 'View' | null
+  const [activeMenu, setActiveMenu] = useState(null); // 'File' | 'Edit' | 'View' | 'Help' | null
   const [activeSubmenu, setActiveSubmenu] = useState(null); // 'download' | 'zoom' | null
   const menuBarRef = useRef(null);
 
@@ -219,6 +272,45 @@ const EditorMenuBar = ({
                 </div>
               )}
             </div>
+
+            {/* Version History */}
+            <button
+              type="button"
+              onClick={() => executeAction(onOpenVersionHistory)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <History className="w-4 h-4 text-gray-500" />
+                Version history
+              </span>
+            </button>
+
+            {/* Document Details */}
+            <button
+              type="button"
+              onClick={() => executeAction(onOpenDetails)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Info className="w-4 h-4 text-gray-500" />
+                Document details
+              </span>
+            </button>
+
+            <div className="my-1 border-t border-gray-200" />
+
+            {/* Print */}
+            <button
+              type="button"
+              onClick={() => executeAction(onPrint)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Printer className="w-4 h-4 text-gray-500" />
+                Print
+              </span>
+              <span className="text-[11px] text-gray-400 font-mono">Ctrl+P</span>
+            </button>
 
             {/* Delete / Move to Trash (Owner/Editor only) */}
             {canDelete && (
@@ -428,16 +520,332 @@ const EditorMenuBar = ({
         )}
       </div>
 
-      {/* Passive Menu Labels (Insert, Format, Tools, Extensions, Help) */}
-      {['Insert', 'Format', 'Tools', 'Extensions', 'Help'].map((item) => (
+      {/* 4. INSERT MENU */}
+      <div className="relative">
         <button
-          key={item}
           type="button"
-          className="px-2 py-0.5 rounded hover:bg-gray-100 transition text-gray-700 hover:text-gray-900"
+          onClick={() => handleMenuClick('Insert')}
+          onMouseEnter={() => handleMenuHover('Insert')}
+          className={`px-2 py-0.5 rounded text-gray-700 hover:text-gray-900 transition ${
+            activeMenu === 'Insert' ? 'bg-gray-200' : 'hover:bg-gray-100'
+          }`}
+          aria-haspopup="true"
+          aria-expanded={activeMenu === 'Insert'}
         >
-          {item}
+          Insert
         </button>
-      ))}
+
+        {activeMenu === 'Insert' && (
+          <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-sm shadow-lg py-1.5 z-50 text-[13px] text-gray-800">
+            {/* Image */}
+            <button
+              type="button"
+              onClick={() => executeAction(onInsertImage)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-gray-500" />
+                Image
+              </span>
+            </button>
+
+            {/* Table */}
+            <button
+              type="button"
+              onClick={() => executeAction(onInsertTable)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <TableIcon className="w-4 h-4 text-gray-500" />
+                Table
+              </span>
+            </button>
+
+            {/* Chart */}
+            <button
+              type="button"
+              onClick={() => executeAction(onInsertChart)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-gray-500" />
+                Chart
+              </span>
+            </button>
+
+            {/* Audio clip / button */}
+            <button
+              type="button"
+              onClick={() => executeAction(onInsertAudio)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Volume2 className="w-4 h-4 text-gray-500" />
+                Audio
+              </span>
+            </button>
+
+            <div className="my-1 border-t border-gray-200" />
+
+            {/* Horizontal line */}
+            <button
+              type="button"
+              onClick={() => executeAction(onInsertHorizontalLine)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Minus className="w-4 h-4 text-gray-500" />
+                Horizontal line
+              </span>
+            </button>
+
+            {/* Link */}
+            <button
+              type="button"
+              onClick={() => executeAction(onInsertLink)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Link className="w-4 h-4 text-gray-500" />
+                Link
+              </span>
+              <span className="text-[11px] text-gray-400 font-mono">Ctrl+K</span>
+            </button>
+
+            {/* Special Characters / Symbols */}
+            <button
+              type="button"
+              onClick={() => executeAction(onInsertSymbol)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <FileCode className="w-4 h-4 text-gray-500" />
+                Special characters
+              </span>
+            </button>
+
+            <div className="my-1 border-t border-gray-200" />
+
+            {/* Bookmark */}
+            <button
+              type="button"
+              onClick={() => executeAction(onInsertBookmark)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Bookmark className="w-4 h-4 text-gray-500" />
+                Bookmark
+              </span>
+            </button>
+
+            {/* Page Break */}
+            <button
+              type="button"
+              onClick={() => executeAction(onInsertPageBreak)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <SplitSquareVertical className="w-4 h-4 text-gray-500" />
+                Page break
+              </span>
+            </button>
+
+            {/* Building blocks */}
+            <button
+              type="button"
+              onClick={() => executeAction(onInsertBuildingBlock)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <LayoutGrid className="w-4 h-4 text-gray-500" />
+                Building blocks
+              </span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Passive Format button */}
+      <button
+        type="button"
+        className="px-2 py-0.5 rounded hover:bg-gray-100 transition text-gray-700 hover:text-gray-900"
+      >
+        Format
+      </button>
+
+      {/* 5. TOOLS MENU */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => handleMenuClick('Tools')}
+          onMouseEnter={() => handleMenuHover('Tools')}
+          className={`px-2 py-0.5 rounded text-gray-700 hover:text-gray-900 transition ${
+            activeMenu === 'Tools' ? 'bg-gray-200' : 'hover:bg-gray-100'
+          }`}
+          aria-haspopup="true"
+          aria-expanded={activeMenu === 'Tools'}
+        >
+          Tools
+        </button>
+
+        {activeMenu === 'Tools' && (
+          <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-sm shadow-lg py-1.5 z-50 text-[13px] text-gray-800">
+            {/* Proofread */}
+            <button
+              type="button"
+              onClick={() => executeAction(onProofread)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <SpellCheck className="w-4 h-4 text-gray-500" />
+                Proofread
+              </span>
+            </button>
+
+            {/* Word count */}
+            <button
+              type="button"
+              onClick={() => executeAction(onOpenWordCount)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-gray-500" />
+                Word count
+              </span>
+              <span className="text-[11px] text-gray-400 font-mono">Ctrl+Shift+C</span>
+            </button>
+
+            {/* Line numbers toggle */}
+            <button
+              type="button"
+              onClick={() => executeAction(onToggleLineNumbers)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <span className="w-4 flex justify-center">
+                  {showLineNumbers && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                </span>
+                Line numbers
+              </span>
+            </button>
+
+            <div className="my-1 border-t border-gray-200" />
+
+            {/* Voice typing */}
+            <button
+              type="button"
+              onClick={() => executeAction(onToggleVoiceTyping)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Mic className={`w-4 h-4 ${isVoiceTyping ? 'text-red-500 animate-pulse' : 'text-gray-500'}`} />
+                Voice typing
+              </span>
+              <span className="text-[11px] text-gray-400 font-mono">Ctrl+Shift+S</span>
+            </button>
+
+            {/* Compare documents */}
+            <button
+              type="button"
+              onClick={() => executeAction(onOpenCompare)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <GitCompare className="w-4 h-4 text-gray-500" />
+                Compare documents
+              </span>
+            </button>
+
+            {/* Citations */}
+            <button
+              type="button"
+              onClick={() => executeAction(onOpenCitations)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Quote className="w-4 h-4 text-gray-500" />
+                Citations
+              </span>
+            </button>
+
+            <div className="my-1 border-t border-gray-200" />
+
+            {/* Notification settings */}
+            <button
+              type="button"
+              onClick={() => executeAction(onOpenPreferences)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Settings className="w-4 h-4 text-gray-500" />
+                Notification settings
+              </span>
+            </button>
+
+            {/* Preferences */}
+            <button
+              type="button"
+              onClick={() => executeAction(onOpenPreferences)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-gray-500" />
+                Preferences
+              </span>
+            </button>
+
+            {/* Accessibility */}
+            <button
+              type="button"
+              onClick={() => executeAction(onOpenAccessibility)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-gray-500" />
+                Accessibility
+              </span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Passive Extensions button */}
+      <button
+        type="button"
+        className="px-2 py-0.5 rounded hover:bg-gray-100 transition text-gray-700 hover:text-gray-900"
+      >
+        Extensions
+      </button>
+
+      {/* 4. HELP MENU */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => handleMenuClick('Help')}
+          onMouseEnter={() => handleMenuHover('Help')}
+          className={`px-2 py-0.5 rounded text-gray-700 hover:text-gray-900 transition ${
+            activeMenu === 'Help' ? 'bg-gray-200' : 'hover:bg-gray-100'
+          }`}
+        >
+          Help
+        </button>
+
+        {activeMenu === 'Help' && (
+          <div className="absolute left-0 top-full mt-1 w-60 bg-white border border-gray-200 rounded-sm shadow-lg py-1.5 z-50 text-[13px] text-gray-800">
+            <button
+              type="button"
+              onClick={() => executeAction(onOpenShortcuts)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Keyboard className="w-4 h-4 text-gray-500" />
+                Keyboard shortcuts
+              </span>
+              <span className="text-[11px] text-gray-400 font-mono">Ctrl+/</span>
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

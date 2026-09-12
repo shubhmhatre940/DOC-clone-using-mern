@@ -11,10 +11,35 @@ import Document from '../models/Document.js';
 const messageSync = 0;
 const messageAwareness = 1;
 const messageAuth = 2;
+export const messageCustom = 3;
 
 // In-memory collection of active document rooms
 // Key: docId, Value: { doc: Y.Doc, awareness: awarenessProtocol.Awareness, conns: Map<WebSocket, Set<number>>, persistTimeout: any }
 const docs = new Map();
+
+/**
+ * Broadcast an application event (e.g. comment added/resolved) to all active WebSocket clients in a document room
+ */
+export function broadcastDocEvent(docId, eventData) {
+  if (!docId) return;
+  const docData = docs.get(docId.toString());
+  if (!docData || !docData.conns) return;
+
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, messageCustom);
+  encoding.writeVarString(encoder, JSON.stringify(eventData));
+  const message = encoding.toUint8Array(encoder);
+
+  docData.conns.forEach((_, conn) => {
+    if (conn.readyState === WebSocket.OPEN) {
+      try {
+        conn.send(message);
+      } catch (e) {
+        console.error('[CollabServer] Failed to broadcast doc event:', e.message);
+      }
+    }
+  });
+}
 
 /**
  * Send an encoded message to a specific WebSocket client
@@ -141,6 +166,19 @@ function handleMessage(conn, docData, message) {
         );
         break;
       }
+      case messageCustom: {
+        const payload = decoding.readVarString(decoder);
+        const encoder = encoding.createEncoder();
+        encoding.writeVarUint(encoder, messageCustom);
+        encoding.writeVarString(encoder, payload);
+        const msg = encoding.toUint8Array(encoder);
+        docData.conns.forEach((_, c) => {
+          if (c !== conn && c.readyState === WebSocket.OPEN) {
+            c.send(msg);
+          }
+        });
+        break;
+      }
       default:
         break;
     }
@@ -175,7 +213,7 @@ export function setupCollabServer(httpServer) {
     }
   });
 
-  wss.on('connection', async (ws, request) => {
+  wss.on('connection', (ws, request) => {
     try {
       const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
       const pathParts = url.pathname.split('/').filter(Boolean); // ['yjs', '<docId>']
@@ -192,11 +230,18 @@ export function setupCollabServer(httpServer) {
         return;
       }
 
-      const docData = await getYDoc(docId);
-      docData.conns.set(ws, new Set());
+      // Buffer incoming messages until docData is loaded to prevent dropping initial syncStep1
+      const messageQueue = [];
+      let docData = null;
+      let isClosed = false;
 
       ws.on('message', (message) => {
-        handleMessage(ws, docData, new Uint8Array(message));
+        const uint8 = new Uint8Array(message);
+        if (docData) {
+          handleMessage(ws, docData, uint8);
+        } else {
+          messageQueue.push(uint8);
+        }
       });
 
       ws.on('error', (err) => {
@@ -204,7 +249,10 @@ export function setupCollabServer(httpServer) {
       });
 
       ws.on('close', (code, reason) => {
+        isClosed = true;
         console.log(`[CollabServer] Client disconnected from docId: ${docId} (code: ${code}, reason: ${reason || 'none'})`);
+        if (!docData) return;
+
         const controlledIds = docData.conns.get(ws);
         docData.conns.delete(ws);
 
@@ -237,28 +285,46 @@ export function setupCollabServer(httpServer) {
         }
       });
 
-      // Step 1: Send syncStep1 to client
-      const encoder = encoding.createEncoder();
-      encoding.writeVarUint(encoder, messageSync);
-      syncProtocol.writeSyncStep1(encoder, docData.doc);
-      send(ws, encoder);
+      getYDoc(docId).then((loadedDocData) => {
+        if (isClosed || ws.readyState !== WebSocket.OPEN) {
+          return;
+        }
 
-      // Step 2: Send current awareness states
-      const awarenessStates = docData.awareness.getStates();
-      if (awarenessStates.size > 0) {
-        const awarenessEncoder = encoding.createEncoder();
-        encoding.writeVarUint(awarenessEncoder, messageAwareness);
-        encoding.writeVarUint8Array(
-          awarenessEncoder,
-          awarenessProtocol.encodeAwarenessUpdate(
-            docData.awareness,
-            Array.from(awarenessStates.keys())
-          )
-        );
-        send(ws, awarenessEncoder);
-      }
+        docData = loadedDocData;
+        docData.conns.set(ws, new Set());
+
+        // Step 1: Send syncStep1 to client
+        const encoder = encoding.createEncoder();
+        encoding.writeVarUint(encoder, messageSync);
+        syncProtocol.writeSyncStep1(encoder, docData.doc);
+        send(ws, encoder);
+
+        // Step 2: Send current awareness states
+        const awarenessStates = docData.awareness.getStates();
+        if (awarenessStates.size > 0) {
+          const awarenessEncoder = encoding.createEncoder();
+          encoding.writeVarUint(awarenessEncoder, messageAwareness);
+          encoding.writeVarUint8Array(
+            awarenessEncoder,
+            awarenessProtocol.encodeAwarenessUpdate(
+              docData.awareness,
+              Array.from(awarenessStates.keys())
+            )
+          );
+          send(ws, awarenessEncoder);
+        }
+
+        // Step 3: Replay any queued messages received while docData was resolving
+        while (messageQueue.length > 0) {
+          const queuedMsg = messageQueue.shift();
+          handleMessage(ws, docData, queuedMsg);
+        }
+      }).catch((err) => {
+        console.error(`[CollabServer] Failed to initialize room for doc ${docId}:`, err);
+        ws.close(1011, 'Failed to initialize document room');
+      });
     } catch (err) {
-      console.error('[CollabServer] Connection initialization error:', err.message);
+      console.error('[CollabServer] Error during connection setup:', err.message);
       ws.close(1011, 'Internal server error');
     }
   });

@@ -20,12 +20,16 @@ const API = axios.create({
   }
 });
 
-// Request interceptor: Attach JWT token to every outgoing request if present
+// Request interceptor: Attach JWT token and let browser set boundary for FormData
 API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // If payload is FormData, remove Content-Type so browser sets boundary automatically
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
     }
     return config;
   },
