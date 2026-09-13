@@ -5,6 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { protect } from '../middleware/auth.js';
 import { uploadMedia } from '../controllers/mediaController.js';
+import { uploadLimiter } from '../middleware/rateLimiter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +35,6 @@ const router = express.Router();
 
 router.use(protect);
 
-router.post('/upload', upload.single('file'), uploadMedia);
+router.post('/upload', uploadLimiter, upload.single('file'), uploadMedia);
 
 export default router;

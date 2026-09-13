@@ -1,6 +1,7 @@
 import Document from '../models/Document.js';
 import User from '../models/User.js';
 import { createNotification } from '../services/notificationService.js';
+import { logActivity } from '../services/activityService.js';
 
 /**
  * @desc    Add or update a collaborator's role on a document
@@ -48,6 +49,14 @@ export const addCollaborator = async (req, res) => {
 
     await document.save();
 
+    // Record activity
+    logActivity({
+      documentId: document._id,
+      userId: req.user._id,
+      action: existingIndex > -1 ? 'role_changed' : 'shared',
+      details: `${existingIndex > -1 ? 'Changed role of' : 'Shared with'} ${targetUser.name || targetUser.email} (${assignedRole})`
+    });
+
     // Create in-app notification for the invited/updated user
     createNotification({
       userId: targetUser._id,
@@ -86,6 +95,14 @@ export const removeCollaborator = async (req, res) => {
     );
 
     await document.save();
+
+    // Record activity
+    logActivity({
+      documentId: document._id,
+      userId: req.user._id,
+      action: 'removed_collaborator',
+      details: 'Removed collaborator access'
+    });
 
     const updatedDoc = await Document.findById(document._id)
       .populate('owner', 'name email')
@@ -126,6 +143,14 @@ export const updateVisibility = async (req, res) => {
     }
 
     await document.save();
+
+    // Record activity
+    logActivity({
+      documentId: document._id,
+      userId: req.user._id,
+      action: 'visibility_changed',
+      details: `Changed visibility to "${document.visibility}" (${document.linkRole || 'viewer'})`
+    });
 
     return res.json({
       message: 'Visibility updated successfully',

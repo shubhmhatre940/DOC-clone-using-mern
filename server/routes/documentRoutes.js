@@ -6,7 +6,12 @@ import {
   getDocumentById,
   updateDocument,
   deleteDocument,
-  uploadWordDocument
+  uploadWordDocument,
+  searchDocuments,
+  restoreDocument,
+  permanentDeleteDocument,
+  toggleStarDocument,
+  moveDocumentToFolder
 } from '../controllers/documentController.js';
 import {
   addCollaborator,
@@ -14,9 +19,11 @@ import {
   updateVisibility,
   getCollaborators
 } from '../controllers/shareController.js';
+import { getActivityLog } from '../controllers/activityController.js';
 import { exportDocument } from '../controllers/exportController.js';
 import { protect } from '../middleware/auth.js';
 import { checkDocAccess } from '../middleware/permissions.js';
+import { uploadLimiter, createDocLimiter, exportLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -32,6 +39,7 @@ router.use(protect);
 // Upload a Word (.docx) document with Multer error handling
 router.post(
   '/upload',
+  uploadLimiter,
   (req, res, next) => {
     upload.single('file')(req, res, (err) => {
       if (err instanceof multer.MulterError) {
@@ -48,8 +56,11 @@ router.post(
 );
 
 router.route('/')
-  .post(createDocument)
+  .post(createDocLimiter, createDocument)
   .get(getDocuments);
+
+// Backend-powered search across title & content (must be before /:id)
+router.get('/search', searchDocuments);
 
 // Document CRUD with permission checks
 router.route('/:id')
@@ -57,9 +68,18 @@ router.route('/:id')
   .put(checkDocAccess('editor'), updateDocument)
   .delete(deleteDocument);
 
+// Starring, Folder moving, and Trash operations
+router.patch('/:id/star', toggleStarDocument);
+router.patch('/:id/move', moveDocumentToFolder);
+router.patch('/:id/restore', restoreDocument);
+router.delete('/:id/permanent', permanentDeleteDocument);
+
 // Document Export route (requires at least viewer access)
 router.route('/:id/export')
-  .get(checkDocAccess('viewer'), exportDocument);
+  .get(exportLimiter, checkDocAccess('viewer'), exportDocument);
+
+// Document Activity Log / Audit Trail (requires at least viewer access)
+router.get('/:id/activity', checkDocAccess('viewer'), getActivityLog);
 
 // Document Collaboration & Sharing routes (Owner only for management)
 router.route('/:id/collaborators')

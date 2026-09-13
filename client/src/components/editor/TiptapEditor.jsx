@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, Extension } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
+import Underline from '@tiptap/extension-underline';
 import Placeholder from '@tiptap/extension-placeholder';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
@@ -18,6 +19,83 @@ import TableCell from '@tiptap/extension-table-cell';
 import EditorToolbar from './EditorToolbar';
 import CommentBubble from '../comments/CommentBubble';
 
+// Custom extension to attach block-level formatting (text direction dir="rtl|ltr" and CSS styles)
+const BlockFormatting = Extension.create({
+  name: 'blockFormatting',
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['paragraph', 'heading', 'blockquote'],
+        attributes: {
+          dir: {
+            default: null,
+            parseHTML: (element) => element.getAttribute('dir') || null,
+            renderHTML: (attributes) => (attributes.dir ? { dir: attributes.dir } : {})
+          },
+          blockStyle: {
+            default: null,
+            parseHTML: (element) => element.getAttribute('style') || null,
+            renderHTML: (attributes) => (attributes.blockStyle ? { style: attributes.blockStyle } : {})
+          }
+        }
+      }
+    ];
+  }
+});
+
+// Enhanced TableCell supporting custom background color
+const CustomTableCell = TableCell.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      backgroundColor: {
+        default: null,
+        parseHTML: (element) => element.style.backgroundColor || null,
+        renderHTML: (attributes) => {
+          if (!attributes.backgroundColor) return {};
+          return { style: `background-color: ${attributes.backgroundColor};` };
+        }
+      }
+    };
+  }
+});
+
+// Enhanced Image supporting sizing (25%, 50%, 75%, 100%) and text wrap / alignment
+const CustomImage = TiptapImage.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('width') || element.style.width || null,
+        renderHTML: (attributes) => {
+          if (!attributes.width) return {};
+          return { width: attributes.width, style: `width: ${attributes.width}; max-width: 100%; height: auto;` };
+        }
+      },
+      alignment: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-align') || null,
+        renderHTML: (attributes) => {
+          if (attributes.alignment === 'center') {
+            return { 'data-align': 'center', style: 'display: block; margin: 12px auto;' };
+          }
+          if (attributes.alignment === 'left') {
+            return { 'data-align': 'left', style: 'float: left; margin: 0 16px 12px 0;' };
+          }
+          if (attributes.alignment === 'right') {
+            return { 'data-align': 'right', style: 'float: right; margin: 0 0 12px 16px;' };
+          }
+          if (attributes.alignment === 'inline') {
+            return { 'data-align': 'inline', style: 'display: inline-block; vertical-align: middle; margin: 4px;' };
+          }
+          return {};
+        }
+      }
+    };
+  }
+});
+
 const TiptapEditor = ({
   initialContent,
   onContentChange,
@@ -29,17 +107,22 @@ const TiptapEditor = ({
   showToolbar = true,
   zoomLevel = 100,
   showLineNumbers = false,
-  onStartComment
+  onStartComment,
+  isReadingMode = false,
+  onExitReadingMode
 }) => {
+  const effectiveEditable = isEditable && !isReadingMode;
   // Build extension list dynamically based on collaboration availability
   const extensions = [
     StarterKit.configure({
       // Disable built-in history if Yjs is handling undo/redo
       history: !ydoc,
       heading: {
-        levels: [1, 2, 3]
+        levels: [1, 2, 3, 4, 5, 6]
       }
     }),
+    Underline,
+    BlockFormatting,
     TextStyle,
     FontFamily,
     FontSize,
@@ -53,7 +136,7 @@ const TiptapEditor = ({
     Placeholder.configure({
       placeholder: isEditable ? "Type '@' to insert, or start writing..." : 'Read only document'
     }),
-    TiptapImage.configure({
+    CustomImage.configure({
       inline: true,
       allowBase64: true
     }),
@@ -68,7 +151,7 @@ const TiptapEditor = ({
     }),
     TableRow,
     TableHeader,
-    TableCell
+    CustomTableCell
   ];
 
   // Attach Yjs collaboration if ydoc is provided
@@ -109,6 +192,11 @@ const TiptapEditor = ({
           if (event.key === 'Tab') {
             event.preventDefault();
             view.dispatch(view.state.tr.insertText('\u00A0\u00A0\u00A0\u00A0'));
+            return true;
+          }
+          if ((event.ctrlKey || event.metaKey) && event.key === '\\') {
+            event.preventDefault();
+            editor?.chain().focus().unsetAllMarks().clearNodes().run();
             return true;
           }
           return false;
@@ -178,12 +266,12 @@ const TiptapEditor = ({
     }
   }, [initialContent, editor, ydoc, provider]);
 
-  // Synchronize editable property if permissions change dynamically
+  // Synchronize editable property if permissions or reading mode change dynamically
   useEffect(() => {
     if (editor) {
-      editor.setEditable(isEditable);
+      editor.setEditable(effectiveEditable);
     }
-  }, [isEditable, editor]);
+  }, [effectiveEditable, editor]);
 
   // Expose editor instance to parent (for Edit menu bar commands)
   useEffect(() => {
@@ -252,27 +340,51 @@ const TiptapEditor = ({
   };
 
   return (
-    <div className="flex flex-col flex-1 bg-[#f8f9fa] overflow-y-auto relative">
+    <div className="flex flex-col flex-1 bg-[#f8f9fa] dark:bg-[#18191b] overflow-y-auto relative transition-colors">
+      {/* Reading Mode Floating Status Banner */}
+      {isReadingMode && (
+        <div className="bg-amber-50/95 backdrop-blur-xs border-b border-amber-200 px-4 py-2 flex items-center justify-between text-xs text-amber-900 z-20 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+            <span className="font-semibold">Reading mode</span>
+            <span className="text-amber-700 hidden sm:inline">— Non-editable clean view. Live collaborative edits will still appear in real time.</span>
+          </div>
+          {onExitReadingMode && (
+            <button
+              type="button"
+              onClick={onExitReadingMode}
+              className="px-2.5 py-1 rounded bg-white border border-amber-300 hover:bg-amber-100 font-medium text-amber-800 transition cursor-pointer shadow-2xs text-xs"
+            >
+              Exit reading mode
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Floating Add Comment Trigger */}
-      <CommentBubble
-        visible={!!bubblePos}
-        position={bubblePos}
-        onClick={handleStartComment}
-      />
+      {!isReadingMode && (
+        <CommentBubble
+          visible={!!bubblePos}
+          position={bubblePos}
+          onClick={handleStartComment}
+        />
+      )}
 
       {/* Google Docs Formatting Toolbar (Toggleable from View menu) */}
-      {showToolbar && <EditorToolbar editor={editor} editable={isEditable} />}
+      {showToolbar && !isReadingMode && <EditorToolbar editor={editor} editable={isEditable} />}
 
       {/* Editor Canvas Area */}
       <div
-        className="flex-1 overflow-auto py-8 px-4 flex justify-center cursor-text"
-        onClick={() => isEditable && editor?.commands.focus()}
+        className="flex-1 overflow-auto py-4 sm:py-8 px-2 sm:px-4 flex justify-center cursor-text"
+        onClick={() => effectiveEditable && editor?.commands.focus()}
       >
-        {/* Paper Sheet (Standard US Letter 8.5" x 11" feel) with Zoom scaling */}
+        {/* Paper Sheet (Standard US Letter 8.5" x 11" feel or clean article in reading mode) with Zoom scaling */}
         <div
-          className={`w-full max-w-[816px] min-h-[1056px] bg-white rounded-xs shadow-[0_1px_3px_1px_rgba(60,64,67,0.15)] border border-gray-200 px-12 sm:px-16 py-16 transition-transform duration-150 ${
-            showLineNumbers ? 'show-line-numbers' : ''
-          }`}
+          className={`w-full transition-all duration-150 ${
+            isReadingMode
+              ? 'max-w-[760px] min-h-[900px] bg-white rounded-lg shadow-sm border border-gray-200 px-8 sm:px-14 md:px-18 py-10 sm:py-16 text-[17px] leading-relaxed font-serif text-gray-900'
+              : 'max-w-[816px] min-h-[1056px] bg-white rounded-xs shadow-[0_1px_3px_1px_rgba(60,64,67,0.15)] border border-gray-200 dark:border-[#383a3d] px-6 sm:px-12 md:px-16 py-8 sm:py-16'
+          } ${showLineNumbers && !isReadingMode ? 'show-line-numbers' : ''}`}
           style={{
             transform: zoomLevel !== 100 ? `scale(${zoomLevel / 100})` : undefined,
             transformOrigin: 'top center'

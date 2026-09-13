@@ -12,10 +12,14 @@ import { useAutosave } from '../hooks/useAutosave';
 import { getDocumentById, createDocument, deleteDocument, exportDocument } from '../api/documents';
 import { getComments, createComment, addReply, updateComment, deleteComment as apiDeleteComment } from '../api/comments';
 import CommentSidebar from '../components/comments/CommentSidebar';
+import TableOfContentsSidebar from '../components/editor/TableOfContentsSidebar';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 import VersionHistoryModal from '../components/history/VersionHistoryModal';
+import ActivityLogModal from '../components/activity/ActivityLogModal';
 import WordCountModal, { computeStats } from '../components/tools/WordCountModal';
 import PreferencesModal from '../components/tools/PreferencesModal';
 import VoiceTypingWidget from '../components/tools/VoiceTypingWidget';
+import GrammarCheckWidget from '../components/tools/GrammarCheckWidget';
 import CompareModal from '../components/tools/CompareModal';
 import CitationsModal from '../components/tools/CitationsModal';
 import LinkModal from '../components/insert/LinkModal';
@@ -69,6 +73,13 @@ const EditorPage = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [exportLoadingFormat, setExportLoadingFormat] = useState(null);
+
+  // New features: TOC, Focus mode, Reading mode, Activity log, Grammar check
+  const [isTocOpen, setIsTocOpen] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isReadingMode, setIsReadingMode] = useState(false);
+  const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
+  const [isGrammarCheckOpen, setIsGrammarCheckOpen] = useState(false);
 
   // Phase 5: Comments state
   const [comments, setComments] = useState([]);
@@ -162,6 +173,39 @@ const EditorPage = () => {
     if (!documentData) return true;
     const role = documentData.currentUserRole;
     return !role || role === 'owner' || role === 'editor';
+  }, [documentData]);
+
+  // Document collaborators list for @mentions in comments (Phase 4 reuse)
+  const documentCollaborators = useMemo(() => {
+    const list = [];
+    if (documentData?.owner) {
+      list.push({
+        _id: documentData.owner._id || documentData.owner,
+        name: documentData.owner.name || 'Document Owner',
+        email: documentData.owner.email || '',
+        role: 'owner'
+      });
+    }
+    if (Array.isArray(documentData?.collaborators)) {
+      documentData.collaborators.forEach((c) => {
+        const u = c.userId;
+        if (u) {
+          list.push({
+            _id: u._id || u,
+            name: u.name || 'Collaborator',
+            email: u.email || '',
+            role: c.role || 'viewer'
+          });
+        }
+      });
+    }
+    const seen = new Set();
+    return list.filter((item) => {
+      const idStr = item._id?.toString();
+      if (!idStr || seen.has(idStr)) return false;
+      seen.add(idStr);
+      return true;
+    });
   }, [documentData]);
 
   // Phase 2: Debounced auto-save hook (persists title & content to MongoDB after 1.5s inactivity)
@@ -325,9 +369,9 @@ const EditorPage = () => {
     }
   };
 
-  const handleReplyComment = async (commentId, text) => {
+  const handleReplyComment = async (commentId, replyData) => {
     try {
-      const updated = await addReply(commentId, text);
+      const updated = await addReply(commentId, replyData);
       setComments((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
     } catch (err) {
       console.error('Failed to add reply:', err);
@@ -402,6 +446,11 @@ const EditorPage = () => {
       if (isCtrl && e.shiftKey && key === 'c') {
         e.preventDefault();
         setIsWordCountOpen((prev) => !prev);
+      }
+      // Focus mode: Ctrl + Shift + F
+      else if (isCtrl && e.shiftKey && key === 'f') {
+        e.preventDefault();
+        setIsFocusMode((prev) => !prev);
       }
       // Voice typing: Ctrl + Shift + S
       else if (isCtrl && e.shiftKey && key === 's') {
@@ -630,72 +679,108 @@ const EditorPage = () => {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-white">
-      {/* Top Navbar with functional File, Edit, View menus */}
-      <EditorNavbar
-        title={title}
-        setTitle={setTitle}
-        onSaveTitle={handleTitleSave}
-        saveStatus={saveStatus}
-        onManualSave={() => saveNow()}
-        activeUsers={activeUsers}
-        connectionStatus={connectionStatus}
-        onOpenShare={() => setIsShareModalOpen(true)}
-        isEditable={isEditable}
-        // Phase 5: Comments toggle & badge
-        commentsCount={comments.filter((c) => !c.resolved).length}
-        isCommentsOpen={isCommentsOpen}
-        onToggleComments={() => setIsCommentsOpen((prev) => !prev)}
-        // Menu bar props
-        onMakeCopy={handleMakeCopy}
-        onDelete={handleDelete}
-        onExport={handleExport}
-        exportLoadingFormat={exportLoadingFormat}
-        canDelete={canDelete}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        onCut={handleCut}
-        onCopyText={handleCopyText}
-        onPaste={handlePaste}
-        onSelectAll={handleSelectAll}
-        showToolbar={showToolbar}
-        onToggleToolbar={() => setShowToolbar((prev) => !prev)}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={handleToggleFullscreen}
-        zoomLevel={zoomLevel}
-        onSetZoom={setZoomLevel}
-        onOpenDetails={() => setIsDetailsModalOpen(true)}
-        onOpenVersionHistory={() => setIsVersionHistoryOpen(true)}
-        onPrint={() => window.print()}
-        onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
-        // Insert actions
-        onInsertLink={() => setIsLinkModalOpen(true)}
-        onInsertSymbol={() => setIsSymbolsModalOpen(true)}
-        onInsertHorizontalLine={handleInsertHorizontalLine}
-        onInsertImage={() => setIsImageModalOpen(true)}
-        onInsertTable={() => setIsTableModalOpen(true)}
-        onInsertAudio={() => setIsAudioModalOpen(true)}
-        onInsertChart={() => setIsChartModalOpen(true)}
-        onInsertBookmark={() => setIsBookmarksModalOpen(true)}
-        onInsertPageBreak={handleInsertPageBreak}
-        onInsertBuildingBlock={() => setIsBuildingBlocksOpen(true)}
-        // Tools actions
-        onOpenWordCount={() => setIsWordCountOpen(true)}
-        showLineNumbers={showLineNumbers}
-        onToggleLineNumbers={() => setShowLineNumbers((prev) => !prev)}
-        onProofread={handleProofread}
-        isVoiceTyping={isVoiceTyping}
-        onToggleVoiceTyping={() => setIsVoiceTyping((prev) => !prev)}
-        onOpenCompare={() => setIsCompareOpen(true)}
-        onOpenCitations={() => setIsCitationsOpen(true)}
-        onOpenPreferences={() => {
-          setPreferencesInitialTab('preferences');
-          setIsPreferencesOpen(true);
-        }}
-        onOpenAccessibility={handleOpenAccessibility}
-      />
+      {/* Floating Exit Focus Mode Pill */}
+      {isFocusMode && (
+        <div className="fixed top-3 right-4 z-50 flex items-center gap-2 bg-gray-900/90 hover:bg-gray-900 text-white text-xs px-3.5 py-1.5 rounded-full shadow-xl backdrop-blur-xs border border-gray-700/50 select-none animate-in fade-in slide-in-from-top-2 duration-150">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span className="font-medium">Focus mode</span>
+          <span className="text-gray-500">|</span>
+          <button
+            type="button"
+            onClick={() => setIsFocusMode(false)}
+            className="text-blue-300 hover:text-white font-medium underline transition cursor-pointer"
+            title="Exit focus mode (Ctrl+Shift+F)"
+          >
+            Exit (Ctrl+Shift+F)
+          </button>
+        </div>
+      )}
 
-      {/* Main Workspace Area with Editor & Comments Sidebar */}
+      {/* Top Navbar with functional File, Edit, View menus (hidden in Focus Mode) */}
+      {!isFocusMode && (
+        <EditorNavbar
+          title={title}
+          setTitle={setTitle}
+          onSaveTitle={handleTitleSave}
+          saveStatus={saveStatus}
+          onManualSave={() => saveNow()}
+          activeUsers={activeUsers}
+          connectionStatus={connectionStatus}
+          onOpenShare={() => setIsShareModalOpen(true)}
+          isEditable={isEditable}
+          editor={editor}
+          // Phase 5: Comments toggle & badge
+          commentsCount={comments.filter((c) => !c.resolved).length}
+          isCommentsOpen={isCommentsOpen}
+          onToggleComments={() => setIsCommentsOpen((prev) => !prev)}
+          // New View Mode toggles
+          showToc={isTocOpen}
+          onToggleToc={() => setIsTocOpen((prev) => !prev)}
+          isFocusMode={isFocusMode}
+          onToggleFocusMode={() => setIsFocusMode((prev) => !prev)}
+          isReadingMode={isReadingMode}
+          onToggleReadingMode={() => setIsReadingMode((prev) => !prev)}
+          onOpenActivityLog={() => setIsActivityLogOpen(true)}
+          onOpenGrammarCheck={() => setIsGrammarCheckOpen((prev) => !prev)}
+          // Menu bar props
+          onMakeCopy={handleMakeCopy}
+          onDelete={handleDelete}
+          onExport={handleExport}
+          exportLoadingFormat={exportLoadingFormat}
+          canDelete={canDelete}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onCut={handleCut}
+          onCopyText={handleCopyText}
+          onPaste={handlePaste}
+          onSelectAll={handleSelectAll}
+          showToolbar={showToolbar}
+          onToggleToolbar={() => setShowToolbar((prev) => !prev)}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={handleToggleFullscreen}
+          zoomLevel={zoomLevel}
+          onSetZoom={setZoomLevel}
+          onOpenDetails={() => setIsDetailsModalOpen(true)}
+          onOpenVersionHistory={() => setIsVersionHistoryOpen(true)}
+          onPrint={() => window.print()}
+          onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
+          // Insert actions
+          onInsertLink={() => setIsLinkModalOpen(true)}
+          onInsertSymbol={() => setIsSymbolsModalOpen(true)}
+          onInsertHorizontalLine={handleInsertHorizontalLine}
+          onInsertImage={() => setIsImageModalOpen(true)}
+          onInsertTable={() => setIsTableModalOpen(true)}
+          onInsertAudio={() => setIsAudioModalOpen(true)}
+          onInsertChart={() => setIsChartModalOpen(true)}
+          onInsertBookmark={() => setIsBookmarksModalOpen(true)}
+          onInsertPageBreak={handleInsertPageBreak}
+          onInsertBuildingBlock={() => setIsBuildingBlocksOpen(true)}
+          // Tools actions
+          onOpenWordCount={() => setIsWordCountOpen(true)}
+          showLineNumbers={showLineNumbers}
+          onToggleLineNumbers={() => setShowLineNumbers((prev) => !prev)}
+          onProofread={handleProofread}
+          isVoiceTyping={isVoiceTyping}
+          onToggleVoiceTyping={() => setIsVoiceTyping((prev) => !prev)}
+          onOpenCompare={() => setIsCompareOpen(true)}
+          onOpenCitations={() => setIsCitationsOpen(true)}
+          onOpenPreferences={() => {
+            setPreferencesInitialTab('preferences');
+            setIsPreferencesOpen(true);
+          }}
+          onOpenAccessibility={handleOpenAccessibility}
+        />
+      )}
+
+      {/* Main Workspace Area with Table of Contents, Editor & Comments Sidebar */}
       <div className="flex flex-1 overflow-hidden relative">
+        {/* Document Outline / Table of Contents */}
+        <TableOfContentsSidebar
+          editor={editor}
+          isOpen={isTocOpen && !isFocusMode}
+          onClose={() => setIsTocOpen(false)}
+        />
+
         <TiptapEditor
           initialContent={documentData?.content || ''}
           onContentChange={handleContentChange}
@@ -704,14 +789,16 @@ const EditorPage = () => {
           currentUser={currentUser}
           isEditable={isEditable}
           onEditorReady={setEditor}
-          showToolbar={showToolbar}
+          showToolbar={showToolbar && !isFocusMode}
           zoomLevel={zoomLevel}
           showLineNumbers={showLineNumbers}
           onStartComment={handleStartComment}
+          isReadingMode={isReadingMode}
+          onExitReadingMode={() => setIsReadingMode(false)}
         />
 
         {/* Floating Live Word Count Badge */}
-        {showLiveWordCount && (
+        {showLiveWordCount && !isFocusMode && (
           <div
             onClick={() => setIsWordCountOpen(true)}
             className="absolute bottom-4 left-6 z-20 bg-white/95 backdrop-blur-sm border border-gray-200 shadow-md rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:shadow-lg transition cursor-pointer select-none"
@@ -726,28 +813,32 @@ const EditorPage = () => {
 
         {/* Voice Typing Widget Floating Pill */}
         <VoiceTypingWidget
-          isOpen={isVoiceTyping}
+          isOpen={isVoiceTyping && !isFocusMode}
           onClose={() => setIsVoiceTyping(false)}
           editor={editor}
         />
 
-        <CommentSidebar
-          isOpen={isCommentsOpen}
-          onClose={() => setIsCommentsOpen(false)}
-          comments={comments}
-          currentUserId={user?._id}
-          userRole={documentData?.currentUserRole || 'owner'}
-          onResolve={handleResolveComment}
-          onReopen={handleReopenComment}
-          onReply={handleReplyComment}
-          onDelete={handleDeleteComment}
-          onEdit={handleEditComment}
-          newCommentDraft={newCommentDraft}
-          onCancelNewComment={() => setNewCommentDraft(null)}
-          onCreateComment={handleCreateComment}
-          highlightedCommentId={highlightedCommentId}
-          onSelectComment={setHighlightedCommentId}
-        />
+        <ErrorBoundary compact title="Comments Sidebar">
+          <CommentSidebar
+            isOpen={isCommentsOpen && !isFocusMode}
+            onClose={() => setIsCommentsOpen(false)}
+            comments={comments}
+            collaborators={documentCollaborators}
+            currentUserId={user?._id}
+            currentUserName={user?.name}
+            userRole={documentData?.currentUserRole || 'owner'}
+            onResolve={handleResolveComment}
+            onReopen={handleReopenComment}
+            onReply={handleReplyComment}
+            onDelete={handleDeleteComment}
+            onEdit={handleEditComment}
+            newCommentDraft={newCommentDraft}
+            onCancelNewComment={() => setNewCommentDraft(null)}
+            onCreateComment={handleCreateComment}
+            highlightedCommentId={highlightedCommentId}
+            onSelectComment={setHighlightedCommentId}
+          />
+        </ErrorBoundary>
       </div>
 
       {/* Version History Modal (Phase 5 Feature 2) */}
@@ -766,6 +857,21 @@ const EditorPage = () => {
           }
           saveNow();
         }}
+      />
+
+      {/* Activity Log / Audit Trail Modal (Feature 3) */}
+      <ActivityLogModal
+        isOpen={isActivityLogOpen}
+        onClose={() => setIsActivityLogOpen(false)}
+        docId={id}
+        currentUserId={user?._id}
+      />
+
+      {/* Spelling & Grammar Check Widget (Feature 6 - LanguageTool) */}
+      <GrammarCheckWidget
+        editor={editor}
+        isOpen={isGrammarCheckOpen && !isFocusMode}
+        onClose={() => setIsGrammarCheckOpen(false)}
       />
 
       {/* Google Docs Share Modal */}

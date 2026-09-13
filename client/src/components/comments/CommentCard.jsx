@@ -1,5 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Check, RotateCcw, Trash2, MessageSquare, Send, MoreVertical, Edit2, X } from 'lucide-react';
+import MentionDropdown from './MentionDropdown';
+
+function renderContentWithMentions(text, currentUserName = '') {
+  if (!text) return null;
+  const parts = text.split(/(@[A-Za-z0-9_.-]+(?:\s+[A-Za-z0-9_.-]+)?)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('@')) {
+      const mentionName = part.slice(1).trim();
+      const isSelfMention =
+        currentUserName &&
+        mentionName.toLowerCase() === currentUserName.toLowerCase();
+
+      return (
+        <span
+          key={i}
+          className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-xs select-none mx-0.5 transition ${
+            isSelfMention
+              ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-300 font-bold'
+              : 'bg-blue-100 text-blue-700 font-semibold hover:bg-blue-200'
+          }`}
+          title={isSelfMention ? 'You were mentioned' : undefined}
+        >
+          @{mentionName}
+        </span>
+      );
+    }
+    return part;
+  });
+}
 
 function formatTimestamp(dateStr) {
   if (!dateStr) return '';
@@ -35,7 +64,9 @@ function getUserColor(str = '') {
 
 const CommentCard = ({
   comment,
+  collaborators = [],
   currentUserId,
+  currentUserName,
   userRole = 'viewer',
   onResolve,
   onReopen,
@@ -47,6 +78,10 @@ const CommentCard = ({
 }) => {
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState('');
+  const [replyMentionQuery, setReplyMentionQuery] = useState(null);
+  const [replyMentionedIds, setReplyMentionedIds] = useState(new Set());
+  const replyInputRef = useRef(null);
+
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(comment.text);
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
@@ -57,13 +92,52 @@ const CommentCard = ({
   const canDelete = isAuthor || userRole === 'owner';
   const canResolve = isDocOwnerOrEditor;
 
+  const handleReplyTextChange = (e) => {
+    const val = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    setReplyText(val);
+
+    const textBefore = val.slice(0, cursorPos);
+    const match = textBefore.match(/@([a-zA-Z0-9_\s]*)$/);
+    if (match) {
+      setReplyMentionQuery(match[1]);
+    } else {
+      setReplyMentionQuery(null);
+    }
+  };
+
+  const handleSelectReplyMention = (user) => {
+    if (!replyInputRef.current) return;
+    const cursorPos = replyInputRef.current.selectionStart;
+    const textBefore = replyText.slice(0, cursorPos);
+    const textAfter = replyText.slice(cursorPos);
+
+    const replaced = textBefore.replace(/@([a-zA-Z0-9_\s]*)$/, `@${user.name} `);
+    setReplyText(replaced + textAfter);
+    setReplyMentionedIds((prev) => new Set(prev).add(user._id));
+    setReplyMentionQuery(null);
+
+    setTimeout(() => {
+      if (replyInputRef.current) {
+        replyInputRef.current.focus();
+        const nextPos = replaced.length;
+        replyInputRef.current.setSelectionRange(nextPos, nextPos);
+      }
+    }, 10);
+  };
+
   const handleReplySubmit = async (e) => {
     e.preventDefault();
     if (!replyText.trim() || isSubmittingReply) return;
     try {
       setIsSubmittingReply(true);
-      await onReply(comment._id, replyText.trim());
+      await onReply(comment._id, {
+        text: replyText.trim(),
+        mentionedUserIds: Array.from(replyMentionedIds)
+      });
       setReplyText('');
+      setReplyMentionedIds(new Set());
+      setReplyMentionQuery(null);
       setIsReplying(false);
     } finally {
       setIsSubmittingReply(false);
@@ -182,7 +256,7 @@ const CommentCard = ({
         </form>
       ) : (
         <div className="text-xs text-gray-800 leading-relaxed break-words whitespace-pre-wrap mb-2">
-          {comment.text}
+          {renderContentWithMentions(comment.text, currentUserName)}
         </div>
       )}
 
@@ -209,7 +283,7 @@ const CommentCard = ({
                   </span>
                 </div>
                 <div className="text-[11px] text-gray-700 pl-5 whitespace-pre-wrap break-words">
-                  {reply.text}
+                  {renderContentWithMentions(reply.text, currentUserName)}
                 </div>
               </div>
             );
@@ -221,12 +295,22 @@ const CommentCard = ({
       {!comment.resolved && (
         <div className="mt-2.5 pt-2 border-t border-gray-100">
           {isReplying ? (
-            <form onSubmit={handleReplySubmit} className="space-y-1.5">
+            <form onSubmit={handleReplySubmit} className="space-y-1.5 relative">
+              {replyMentionQuery !== null && (
+                <MentionDropdown
+                  collaborators={collaborators}
+                  query={replyMentionQuery}
+                  onSelect={handleSelectReplyMention}
+                  onClose={() => setReplyMentionQuery(null)}
+                  position="top"
+                />
+              )}
               <input
+                ref={replyInputRef}
                 type="text"
-                placeholder="Reply..."
+                placeholder="Reply... (Type '@' to mention)"
                 value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
+                onChange={handleReplyTextChange}
                 className="w-full text-xs px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 autoFocus
               />
@@ -236,6 +320,7 @@ const CommentCard = ({
                   onClick={() => {
                     setIsReplying(false);
                     setReplyText('');
+                    setReplyMentionQuery(null);
                   }}
                   className="px-2 py-1 text-[11px] text-gray-500 hover:bg-gray-100 rounded-md"
                 >

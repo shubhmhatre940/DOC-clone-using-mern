@@ -22,10 +22,11 @@ export const createComment = async (docId, data) => {
 /**
  * Add a reply to an existing comment
  * @param {string} commentId - Comment ID
- * @param {Object} data - { text }
+ * @param {string|Object} data - { text, mentionedUserIds } or string text
  */
 export const addReply = async (commentId, data) => {
-  const response = await API.post(`/comments/${commentId}/replies`, data);
+  const payload = typeof data === 'string' ? { text: data } : data;
+  const response = await API.post(`/comments/${commentId}/replies`, payload);
   return response.data;
 };
 

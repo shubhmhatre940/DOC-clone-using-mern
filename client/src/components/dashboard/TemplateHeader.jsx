@@ -103,16 +103,16 @@ const TemplateHeader = () => {
   const displayedTemplates = showAllTemplates ? filteredTemplates : filteredTemplates.slice(0, 4);
 
   return (
-    <section className="bg-[#f1f3f4] py-6 px-4 md:px-8 border-b border-gray-200">
+    <section className="bg-[#f1f3f4] dark:bg-[#1e1f20] py-6 px-4 md:px-8 border-b border-gray-200 dark:border-[#2f3032] transition-colors">
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-medium text-gray-700">Start a new document</h2>
+          <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200">Start a new document</h2>
 
           {templates.length > 0 && (
             <button
               type="button"
               onClick={() => setShowAllTemplates((prev) => !prev)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 transition hover:bg-gray-200 px-2 py-1 rounded cursor-pointer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition hover:bg-gray-200 dark:hover:bg-neutral-800 px-2 py-1 rounded cursor-pointer"
             >
               <span>{showAllTemplates ? 'Hide template gallery' : 'Template gallery'}</span>
               {showAllTemplates ? (
@@ -183,30 +183,19 @@ const TemplateHeader = () => {
               accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               className="hidden"
             />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={creating || uploading}
-              className="group relative flex h-36 w-28 sm:h-44 sm:w-34 items-center justify-center rounded-md border border-dashed border-gray-300 bg-white shadow-xs transition hover:border-blue-500 hover:bg-blue-50/20 hover:shadow-md focus:outline-none cursor-pointer disabled:opacity-60"
-              title="Upload Word (.docx) to view and edit"
+            <div
+              onClick={() => fileInputRef.current && fileInputRef.current.click()}
+              className="w-32 h-40 bg-white dark:bg-[#25272a] rounded-lg border border-gray-200 dark:border-[#383a3d] flex flex-col items-center justify-center transition-all hover:border-[#1a73e8] hover:shadow-md cursor-pointer"
             >
               {uploading ? (
-                <div className="flex flex-col items-center gap-2">
-                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                  <span className="text-[11px] text-blue-600 font-medium">Converting...</span>
-                </div>
+                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
               ) : (
-                <div className="flex flex-col items-center gap-2 text-gray-500 group-hover:text-blue-600 transition">
-                  <div className="w-11 h-11 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
-                    <UploadCloud className="w-6 h-6" />
-                  </div>
-                  <span className="text-[11px] font-medium text-gray-600 group-hover:text-blue-700">
-                    .DOCX
-                  </span>
+                <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-indigo-600 transition-transform group-hover:scale-110">
+                  <UploadCloud className="w-6 h-6" />
                 </div>
               )}
-            </button>
-            <span className="mt-2 text-xs font-medium text-gray-800">Upload Word (.docx)</span>
+            </div>
+            <span className="mt-2 text-xs font-medium text-gray-700 dark:text-gray-300">Import Word (.docx)</span>
           </div>
 
           {/* 3. Pre-formatted Template Cards */}

@@ -56,23 +56,37 @@ export function useAutosave(docId, title, content, isEditable = true, delay = 15
 
     setSaveStatus('saving');
 
-    try {
-      await updateDocument(docId, {
-        title: currentTitle,
-        content: currentContent
-      });
+    const MAX_RETRIES = 2;
+    let attempt = 0;
+    let saveSuccess = false;
 
-      lastSavedRef.current = {
-        title: currentTitle,
-        content: currentContent
-      };
-      setSaveStatus('saved');
-    } catch (err) {
-      console.error('[Autosave Error]:', err);
-      if (!navigator.onLine || err.code === 'ERR_NETWORK') {
-        setSaveStatus('offline');
-      } else {
-        setSaveStatus('unsaved');
+    while (attempt <= MAX_RETRIES && !saveSuccess) {
+      try {
+        await updateDocument(docId, {
+          title: currentTitle,
+          content: currentContent
+        });
+
+        lastSavedRef.current = {
+          title: currentTitle,
+          content: currentContent
+        };
+        setSaveStatus('saved');
+        saveSuccess = true;
+      } catch (err) {
+        attempt++;
+        console.warn(`[Autosave Attempt ${attempt} Failed]:`, err.message || err);
+        if (attempt <= MAX_RETRIES && navigator.onLine) {
+          // Wait before retrying (800ms, then 1600ms) with exponential backoff
+          await new Promise((resolve) => setTimeout(resolve, attempt * 800));
+        } else {
+          console.error('[Autosave Final Failure]: Save retries exhausted');
+          if (!navigator.onLine || err.code === 'ERR_NETWORK') {
+            setSaveStatus('offline');
+          } else {
+            setSaveStatus('unsaved');
+          }
+        }
       }
     }
   }, [docId, isEditable]);
@@ -123,6 +137,26 @@ export function useAutosave(docId, title, content, isEditable = true, delay = 15
       }
     };
   }, [title, content, isEditable, delay, executeSave]);
+
+  // Listen to network status recovery
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('[Autosave]: Network reconnected, syncing pending changes...');
+      executeSave();
+    };
+
+    const handleOffline = () => {
+      setSaveStatus('offline');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [executeSave]);
 
   // Clean up timer on unmount
   useEffect(() => {

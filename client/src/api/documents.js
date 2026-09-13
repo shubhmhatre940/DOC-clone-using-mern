@@ -85,5 +85,51 @@ export const getTemplateById = async (id) => {
   return response.data;
 };
 
+/**
+ * Search documents by title and content
+ * @param {string} query - Search term
+ */
+export const searchDocuments = async (query) => {
+  const response = await API.get('/documents/search', { params: { q: query } });
+  return response.data;
+};
+
+/**
+ * Restore a document from trash
+ * @param {string} id - Document ID
+ */
+export const restoreDocument = async (id) => {
+  const response = await API.patch(`/documents/${id}/restore`);
+  return response.data;
+};
+
+/**
+ * Permanently delete a document
+ * @param {string} id - Document ID
+ */
+export const permanentDeleteDocument = async (id) => {
+  const response = await API.delete(`/documents/${id}/permanent`);
+  return response.data;
+};
+
+/**
+ * Toggle starred status of a document
+ * @param {string} id - Document ID
+ */
+export const toggleStarDocument = async (id) => {
+  const response = await API.patch(`/documents/${id}/star`);
+  return response.data;
+};
+
+/**
+ * Move a document to a folder (or null for root)
+ * @param {string} id - Document ID
+ * @param {string|null} folderId - Destination folder ID
+ */
+export const moveDocumentToFolder = async (id, folderId) => {
+  const response = await API.patch(`/documents/${id}/move`, { folderId });
+  return response.data;
+};
+
 
 

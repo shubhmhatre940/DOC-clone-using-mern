@@ -12,7 +12,10 @@ import {
   Lock,
   Save,
   Share2,
-  MessageSquare
+  MessageSquare,
+  BookOpen,
+  ListTree,
+  Activity as ActivityIcon
 } from 'lucide-react';
 import NotificationBell from '../notifications/NotificationBell';
 
@@ -26,9 +29,20 @@ const EditorNavbar = ({
   connectionStatus = 'connected',
   onOpenShare,
   isEditable = true,
+  editor = null,
   commentsCount = 0,
   onToggleComments,
   isCommentsOpen = false,
+  // TOC & View modes
+  showToc = false,
+  onToggleToc,
+  isFocusMode = false,
+  onToggleFocusMode,
+  isReadingMode = false,
+  onToggleReadingMode,
+  // Activity log & Grammar
+  onOpenActivityLog,
+  onOpenGrammarCheck,
   // Menu bar props
   onMakeCopy,
   onDelete,
@@ -124,7 +138,7 @@ const EditorNavbar = ({
   };
 
   return (
-    <header className="flex flex-col bg-white border-b border-gray-200 select-none">
+    <header className="flex flex-col bg-white dark:bg-[#1f1f1f] border-b border-gray-200 dark:border-[#383a3d] select-none relative z-30">
       {/* Top row */}
       <div className="flex items-center justify-between px-3 py-2">
         {/* Left: Document Icon & Title & Status */}
@@ -208,6 +222,7 @@ const EditorNavbar = ({
 
             {/* Menu Bar (Google Docs functional dropdown menus) */}
             <EditorMenuBar
+              editor={editor}
               onMakeCopy={onMakeCopy}
               onRename={handleTriggerRename}
               onDelete={onDelete}
@@ -223,12 +238,19 @@ const EditorNavbar = ({
               onSelectAll={onSelectAll}
               showToolbar={showToolbar}
               onToggleToolbar={onToggleToolbar}
+              showToc={showToc}
+              onToggleToc={onToggleToc}
+              isFocusMode={isFocusMode}
+              onToggleFocusMode={onToggleFocusMode}
+              isReadingMode={isReadingMode}
+              onToggleReadingMode={onToggleReadingMode}
               isFullscreen={isFullscreen}
               onToggleFullscreen={onToggleFullscreen}
               zoomLevel={zoomLevel}
               onSetZoom={onSetZoom}
               onOpenDetails={onOpenDetails}
               onOpenVersionHistory={onOpenVersionHistory}
+              onOpenActivityLog={onOpenActivityLog}
               onPrint={onPrint}
               onOpenShortcuts={onOpenShortcuts}
               // Insert actions
@@ -247,6 +269,7 @@ const EditorNavbar = ({
               showLineNumbers={showLineNumbers}
               onToggleLineNumbers={onToggleLineNumbers}
               onProofread={onProofread}
+              onOpenGrammarCheck={onOpenGrammarCheck}
               isVoiceTyping={isVoiceTyping}
               onToggleVoiceTyping={onToggleVoiceTyping}
               onOpenCompare={onOpenCompare}
@@ -257,17 +280,41 @@ const EditorNavbar = ({
           </div>
         </div>
 
-        {/* Right: Active Users, Manual Save, Share Button & User Profile */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Right: Active Users, Quick Mode Toggles, Share Button & User Profile */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Document Outline Quick Toggle */}
+          <button
+            type="button"
+            onClick={onToggleToc}
+            className={`p-1.5 rounded-full transition cursor-pointer ${
+              showToc ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
+            }`}
+            title={showToc ? 'Hide document outline' : 'Show document outline'}
+          >
+            <ListTree className="w-4 h-4" />
+          </button>
+
+          {/* Reading Mode Quick Toggle */}
+          <button
+            type="button"
+            onClick={onToggleReadingMode}
+            className={`p-1.5 rounded-full transition cursor-pointer ${
+              isReadingMode ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
+            }`}
+            title={isReadingMode ? 'Exit reading mode' : 'Reading mode'}
+          >
+            <BookOpen className="w-4 h-4" />
+          </button>
+
           {/* Active Collaborators Presence List */}
           <ActiveUsers users={activeUsers} />
 
           {/* Manual Save Button (Only if editable) */}
-          {isEditable && (
+          {isEditable && !isReadingMode && (
             <button
               onClick={onManualSave}
               disabled={saveStatus === 'saving'}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition focus:outline-none"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition focus:outline-none"
               title="Save changes (Ctrl+S)"
             >
               <Save className="w-3.5 h-3.5" />

@@ -170,16 +170,16 @@ const EditorToolbar = ({ editor, editable = true }) => {
   };
 
   const btnClass = (isActive = false, disabled = false) =>
-    `p-1.5 rounded transition flex items-center justify-center cursor-pointer ${
+    `p-1.5 rounded transition flex items-center justify-center cursor-pointer shrink-0 ${
       disabled
-        ? 'opacity-40 cursor-not-allowed text-gray-400'
+        ? 'opacity-40 cursor-not-allowed text-gray-400 dark:text-gray-600'
         : isActive
-        ? 'bg-[#e8f0fe] text-[#1a73e8]'
-        : 'text-gray-700 hover:bg-gray-200'
+        ? 'bg-[#e8f0fe] dark:bg-blue-950/60 text-[#1a73e8] dark:text-blue-400'
+        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-700'
     }`;
 
   return (
-    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-0.5 sm:gap-1 bg-[#edf2fa] px-4 py-1.5 border-b border-gray-300 select-none">
+    <div className="sticky top-0 z-20 flex items-center gap-0.5 sm:gap-1 bg-[#edf2fa] dark:bg-[#202124] px-2 sm:px-4 py-1.5 border-b border-gray-300 dark:border-[#383a3d] select-none overflow-x-auto scrollbar-none transition-colors">
       {/* Undo / Redo */}
       <button
         type="button"

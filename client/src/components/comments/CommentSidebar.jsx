@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import CommentCard from './CommentCard';
+import MentionDropdown from './MentionDropdown';
 import { MessageSquare, X, CheckCircle2, MessageCircle, Send } from 'lucide-react';
 
 const CommentSidebar = ({
   isOpen,
   onClose,
   comments = [],
+  collaborators = [],
   currentUserId,
+  currentUserName,
   userRole = 'viewer',
   onResolve,
   onReopen,
@@ -22,12 +25,49 @@ const CommentSidebar = ({
   const [activeTab, setActiveTab] = useState('active'); // 'active' | 'resolved'
   const [draftText, setDraftText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [mentionedUserIds, setMentionedUserIds] = useState(new Set());
+  const textareaRef = useRef(null);
 
   if (!isOpen) return null;
 
   const activeComments = comments.filter((c) => !c.resolved);
   const resolvedComments = comments.filter((c) => c.resolved);
   const displayedComments = activeTab === 'active' ? activeComments : resolvedComments;
+
+  const handleTextChange = (e) => {
+    const val = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    setDraftText(val);
+
+    const textBefore = val.slice(0, cursorPos);
+    const match = textBefore.match(/@([a-zA-Z0-9_\s]*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+    } else {
+      setMentionQuery(null);
+    }
+  };
+
+  const handleSelectMention = (user) => {
+    if (!textareaRef.current) return;
+    const cursorPos = textareaRef.current.selectionStart;
+    const textBefore = draftText.slice(0, cursorPos);
+    const textAfter = draftText.slice(cursorPos);
+
+    const replaced = textBefore.replace(/@([a-zA-Z0-9_\s]*)$/, `@${user.name} `);
+    setDraftText(replaced + textAfter);
+    setMentionedUserIds((prev) => new Set(prev).add(user._id));
+    setMentionQuery(null);
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const nextPos = replaced.length;
+        textareaRef.current.setSelectionRange(nextPos, nextPos);
+      }
+    }, 10);
+  };
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
@@ -37,9 +77,12 @@ const CommentSidebar = ({
       await onCreateComment({
         text: draftText.trim(),
         selectedText: newCommentDraft?.selectedText || '',
-        selectionRange: newCommentDraft?.selectionRange || { from: 0, to: 0 }
+        selectionRange: newCommentDraft?.selectionRange || { from: 0, to: 0 },
+        mentionedUserIds: Array.from(mentionedUserIds)
       });
       setDraftText('');
+      setMentionedUserIds(new Set());
+      setMentionQuery(null);
       onCancelNewComment();
     } finally {
       setSubmitting(false);
@@ -117,11 +160,21 @@ const CommentSidebar = ({
               </div>
             )}
 
-            <form onSubmit={handleCreateSubmit} className="space-y-2">
+            <form onSubmit={handleCreateSubmit} className="space-y-2 relative">
+              {mentionQuery !== null && (
+                <MentionDropdown
+                  collaborators={collaborators}
+                  query={mentionQuery}
+                  onSelect={handleSelectMention}
+                  onClose={() => setMentionQuery(null)}
+                  position="bottom"
+                />
+              )}
               <textarea
+                ref={textareaRef}
                 value={draftText}
-                onChange={(e) => setDraftText(e.target.value)}
-                placeholder="Type your comment..."
+                onChange={handleTextChange}
+                placeholder="Type your comment... (Type '@' to mention)"
                 rows={3}
                 className="w-full text-xs p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
                 autoFocus
@@ -153,7 +206,9 @@ const CommentSidebar = ({
             <CommentCard
               key={comment._id}
               comment={comment}
+              collaborators={collaborators}
               currentUserId={currentUserId}
+              currentUserName={currentUserName}
               userRole={userRole}
               onResolve={onResolve}
               onReopen={onReopen}

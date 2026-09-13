@@ -2,6 +2,7 @@ import Comment from '../models/Comment.js';
 import Document from '../models/Document.js';
 import { createNotification } from '../services/notificationService.js';
 import { broadcastDocEvent } from '../services/collabServer.js';
+import { logActivity } from '../services/activityService.js';
 
 // Helper to determine user role on a document
 async function getUserRole(document, userId) {
@@ -50,7 +51,7 @@ export const getComments = async (req, res) => {
  */
 export const createComment = async (req, res) => {
   try {
-    const { text, selectedText, selectionRange } = req.body;
+    const { text, selectedText, selectionRange, mentionedUserIds } = req.body;
     if (!text || !text.trim()) {
       return res.status(400).json({ message: 'Comment text is required' });
     }
@@ -72,21 +73,52 @@ export const createComment = async (req, res) => {
       .populate('authorId', 'name email')
       .populate('replies.authorId', 'name email');
 
-    // Notify document owner if author is not the owner
-    const ownerId = document.owner._id || document.owner;
-    await createNotification({
-      userId: ownerId,
-      senderId: req.user._id,
-      type: 'comment',
-      documentId: document._id,
-      commentId: comment._id,
-      message: `${req.user.name || 'A collaborator'} commented on "${document.title}": "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`
-    });
+    const senderIdStr = req.user._id.toString();
+    const ownerId = document.owner._id ? document.owner._id.toString() : document.owner.toString();
+    const notifiedUserIds = new Set();
+
+    // 1. Send mention notifications to mentioned users
+    if (Array.isArray(mentionedUserIds) && mentionedUserIds.length > 0) {
+      for (const mId of mentionedUserIds) {
+        const mIdStr = mId.toString();
+        if (mIdStr !== senderIdStr) {
+          await createNotification({
+            userId: mIdStr,
+            senderId: req.user._id,
+            type: 'mention',
+            documentId: document._id,
+            commentId: comment._id,
+            message: `${req.user.name || 'A collaborator'} mentioned you in a comment on "${document.title}"`
+          });
+          notifiedUserIds.add(mIdStr);
+        }
+      }
+    }
+
+    // 2. Notify document owner if author is not the owner and not already notified via mention
+    if (ownerId !== senderIdStr && !notifiedUserIds.has(ownerId)) {
+      await createNotification({
+        userId: ownerId,
+        senderId: req.user._id,
+        type: 'comment',
+        documentId: document._id,
+        commentId: comment._id,
+        message: `${req.user.name || 'A collaborator'} commented on "${document.title}": "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`
+      });
+    }
 
     // Broadcast live over existing WebSocket channel
     broadcastDocEvent(document._id, {
       type: 'comment:new',
       comment: populatedComment
+    });
+
+    // Record activity
+    logActivity({
+      documentId: document._id,
+      userId: req.user._id,
+      action: 'commented',
+      details: `Added comment: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`
     });
 
     return res.status(201).json(populatedComment);
@@ -103,7 +135,7 @@ export const createComment = async (req, res) => {
  */
 export const addReply = async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, mentionedUserIds } = req.body;
     if (!text || !text.trim()) {
       return res.status(400).json({ message: 'Reply text is required' });
     }
@@ -137,22 +169,46 @@ export const addReply = async (req, res) => {
 
     // Collect all participants in thread to notify
     const participantIds = new Set();
-    participantIds.add(comment.authorId._id ? comment.authorId._id.toString() : comment.authorId.toString());
+    const commentAuthorIdStr = comment.authorId._id ? comment.authorId._id.toString() : comment.authorId.toString();
+    participantIds.add(commentAuthorIdStr);
     comment.replies.forEach((r) => {
       const aId = r.authorId?._id ? r.authorId._id.toString() : r.authorId?.toString();
       if (aId) participantIds.add(aId);
     });
 
-    // Notify participants
+    const senderIdStr = req.user._id.toString();
+    const notifiedUserIds = new Set();
+
+    // 1. Send mention notifications if users were mentioned in the reply
+    if (Array.isArray(mentionedUserIds) && mentionedUserIds.length > 0) {
+      for (const mId of mentionedUserIds) {
+        const mIdStr = mId.toString();
+        if (mIdStr !== senderIdStr) {
+          await createNotification({
+            userId: mIdStr,
+            senderId: req.user._id,
+            type: 'mention',
+            documentId: document._id,
+            commentId: comment._id,
+            message: `${req.user.name || 'A collaborator'} mentioned you in a reply on "${document.title}"`
+          });
+          notifiedUserIds.add(mIdStr);
+        }
+      }
+    }
+
+    // 2. Notify thread participants who weren't mentioned and aren't the sender
     for (const pId of participantIds) {
-      await createNotification({
-        userId: pId,
-        senderId: req.user._id,
-        type: 'reply',
-        documentId: document._id,
-        commentId: comment._id,
-        message: `${req.user.name || 'A collaborator'} replied to a comment on "${document.title}"`
-      });
+      if (pId !== senderIdStr && !notifiedUserIds.has(pId)) {
+        await createNotification({
+          userId: pId,
+          senderId: req.user._id,
+          type: 'reply',
+          documentId: document._id,
+          commentId: comment._id,
+          message: `${req.user.name || 'A collaborator'} replied to a comment on "${document.title}"`
+        });
+      }
     }
 
     // Broadcast live over WebSocket

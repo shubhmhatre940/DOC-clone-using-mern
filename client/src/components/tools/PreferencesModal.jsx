@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Sliders, Bell, Check, Loader2 } from 'lucide-react';
 import { getUserPreferences, updateUserPreferences } from '../../api/preferences';
+import { useTheme } from '../../context/ThemeContext';
 
 const FONT_OPTIONS = ['Arial', 'Roboto', 'Times New Roman', 'Georgia', 'Courier New'];
 const SIZE_OPTIONS = ['9pt', '10pt', '11pt', '12pt', '14pt', '18pt'];
@@ -11,6 +12,7 @@ const PreferencesModal = ({
   initialTab = 'preferences', // 'preferences' | 'notifications'
   onPreferencesUpdated
 }) => {
+  const { theme: currentGlobalTheme, setTheme: setGlobalTheme } = useTheme();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -20,7 +22,7 @@ const PreferencesModal = ({
   const [defaultFont, setDefaultFont] = useState('Arial');
   const [defaultFontSize, setDefaultFontSize] = useState('11pt');
   const [showLineNumbers, setShowLineNumbers] = useState(false);
-  const [theme, setTheme] = useState('light');
+  const [theme, setTheme] = useState(currentGlobalTheme || 'light');
 
   const [emailOnShare, setEmailOnShare] = useState(true);
   const [emailOnComment, setEmailOnComment] = useState(true);
@@ -79,6 +81,7 @@ const PreferencesModal = ({
       });
 
       setSavedSuccess(true);
+      setGlobalTheme(theme);
       if (onPreferencesUpdated) {
         onPreferencesUpdated(updated);
       }

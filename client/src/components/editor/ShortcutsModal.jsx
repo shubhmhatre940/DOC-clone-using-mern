@@ -8,7 +8,14 @@ const SHORTCUT_GROUPS = [
       { label: 'Bold', keys: ['Ctrl', 'B'] },
       { label: 'Italic', keys: ['Ctrl', 'I'] },
       { label: 'Underline', keys: ['Ctrl', 'U'] },
-      { label: 'Strikethrough', keys: ['Alt', 'Shift', '5'] }
+      { label: 'Strikethrough', keys: ['Alt', 'Shift', '5'] },
+      { label: 'Clear formatting', keys: ['Ctrl', '\\'] },
+      { label: 'Bulleted list', keys: ['Ctrl', 'Shift', '8'] },
+      { label: 'Numbered list', keys: ['Ctrl', 'Shift', '7'] },
+      { label: 'Left align', keys: ['Ctrl', 'Shift', 'L'] },
+      { label: 'Center align', keys: ['Ctrl', 'Shift', 'E'] },
+      { label: 'Right align', keys: ['Ctrl', 'Shift', 'R'] },
+      { label: 'Justify', keys: ['Ctrl', 'Shift', 'J'] }
     ]
   },
   {
@@ -27,6 +34,7 @@ const SHORTCUT_GROUPS = [
     shortcuts: [
       { label: 'Save', keys: ['Ctrl', 'S'] },
       { label: 'Print', keys: ['Ctrl', 'P'] },
+      { label: 'Focus mode', keys: ['Ctrl', 'Shift', 'F'] },
       { label: 'Keyboard shortcuts', keys: ['Ctrl', '/'] }
     ]
   }

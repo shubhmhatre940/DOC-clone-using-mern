@@ -48,6 +48,29 @@ const documentSchema = new mongoose.Schema(
       type: String,
       enum: ['viewer', 'editor'],
       default: 'viewer'
+    },
+    // Phase 6: Folder organization
+    folderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Folder',
+      default: null,
+      index: true
+    },
+    // Phase 6: Starring
+    isStarred: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    // Phase 6: Soft-delete (Trash / Restore)
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    deletedAt: {
+      type: Date,
+      default: null
     }
   },
   {

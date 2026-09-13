@@ -1,6 +1,8 @@
 import DocumentVersion from '../models/DocumentVersion.js';
 import Document from '../models/Document.js';
 import { broadcastDocEvent } from '../services/collabServer.js';
+import { sanitizeContent } from '../utils/sanitize.js';
+import { logActivity } from '../services/activityService.js';
 
 /**
  * Automatically create a snapshot if none exists or if > 5 minutes have passed since the last snapshot
@@ -15,7 +17,7 @@ export async function createAutoSnapshotIfNeeded(docId, title, content, userId) 
       await DocumentVersion.create({
         documentId: docId,
         title: title || 'Untitled document',
-        content: content || '',
+        content: sanitizeContent(content || ''),
         versionName: latest ? '' : 'Initial version',
         createdBy: userId
       });
@@ -88,7 +90,7 @@ export const createVersion = async (req, res) => {
     const version = await DocumentVersion.create({
       documentId: id,
       title: title !== undefined ? title : doc.title,
-      content: content !== undefined ? content : doc.content,
+      content: sanitizeContent(content !== undefined ? content : doc.content),
       versionName: versionName?.trim() || '',
       createdBy: req.user._id
     });
@@ -135,7 +137,7 @@ export const restoreVersion = async (req, res) => {
 
     // Update the live document
     document.title = targetVersion.title || document.title;
-    document.content = targetVersion.content || '';
+    document.content = sanitizeContent(targetVersion.content || '');
     await document.save();
 
     // Broadcast version restore event over WebSocket so open collaborator tabs receive update
@@ -150,6 +152,14 @@ export const restoreVersion = async (req, res) => {
         name: req.user.name,
         email: req.user.email
       }
+    });
+
+    // Record activity
+    logActivity({
+      documentId: id,
+      userId: req.user._id,
+      action: 'restored_version',
+      details: `Restored version from ${new Date(targetVersion.createdAt).toLocaleDateString()}`
     });
 
     return res.json({

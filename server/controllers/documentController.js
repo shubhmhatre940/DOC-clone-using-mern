@@ -1,6 +1,8 @@
 import Document from '../models/Document.js';
 import mammoth from 'mammoth';
 import { createAutoSnapshotIfNeeded } from './versionController.js';
+import { sanitizeContent } from '../utils/sanitize.js';
+import { logActivity } from '../services/activityService.js';
 
 /**
  * @desc    Create a new blank document
@@ -13,12 +15,20 @@ export const createDocument = async (req, res) => {
 
     const document = await Document.create({
       title: title || 'Untitled document',
-      content: content !== undefined ? content : '',
+      content: sanitizeContent(content !== undefined ? content : ''),
       owner: req.user._id
     });
 
     // Create initial version snapshot asynchronously
     createAutoSnapshotIfNeeded(document._id, document.title, document.content, req.user._id);
+
+    // Record activity
+    logActivity({
+      documentId: document._id,
+      userId: req.user._id,
+      action: 'created',
+      details: `Created document "${document.title}"`
+    });
 
     return res.status(201).json(document);
   } catch (error) {
@@ -34,24 +44,66 @@ export const createDocument = async (req, res) => {
  */
 export const getDocuments = async (req, res) => {
   try {
-    const { type } = req.query; // 'owned' | 'shared' | undefined (all)
+    const { type, folderId } = req.query; // 'owned' | 'shared' | 'starred' | 'trash' | undefined (all)
+
+    if (type === 'trash') {
+      const trashDocs = await Document.find({
+        owner: req.user._id,
+        isDeleted: true
+      })
+        .populate('owner', 'name email')
+        .populate('folderId', 'name')
+        .sort({ deletedAt: -1, updatedAt: -1 })
+        .select('title createdAt updatedAt owner collaborators visibility linkRole folderId isStarred isDeleted deletedAt');
+
+      return res.json(trashDocs);
+    }
 
     if (type === 'shared') {
       const sharedDocs = await Document.find({
-        'collaborators.userId': req.user._id
+        'collaborators.userId': req.user._id,
+        isDeleted: { $ne: true }
       })
         .populate('owner', 'name email')
+        .populate('folderId', 'name')
         .sort({ updatedAt: -1 })
-        .select('title createdAt updatedAt owner collaborators visibility linkRole');
+        .select('title createdAt updatedAt owner collaborators visibility linkRole folderId isStarred isDeleted deletedAt');
 
       return res.json(sharedDocs);
     }
 
-    // Default: fetch user's owned documents
-    const ownedDocs = await Document.find({ owner: req.user._id })
+    if (type === 'starred') {
+      const starredDocs = await Document.find({
+        $or: [
+          { owner: req.user._id },
+          { 'collaborators.userId': req.user._id }
+        ],
+        isStarred: true,
+        isDeleted: { $ne: true }
+      })
+        .populate('owner', 'name email')
+        .populate('folderId', 'name')
+        .sort({ updatedAt: -1 })
+        .select('title createdAt updatedAt owner collaborators visibility linkRole folderId isStarred isDeleted deletedAt');
+
+      return res.json(starredDocs);
+    }
+
+    // Default: fetch user's owned documents (optionally filtered by folderId)
+    const query = {
+      owner: req.user._id,
+      isDeleted: { $ne: true }
+    };
+
+    if (folderId !== undefined) {
+      query.folderId = folderId === 'root' || !folderId ? null : folderId;
+    }
+
+    const ownedDocs = await Document.find(query)
       .populate('owner', 'name email')
+      .populate('folderId', 'name')
       .sort({ updatedAt: -1 })
-      .select('title createdAt updatedAt owner collaborators visibility linkRole');
+      .select('title createdAt updatedAt owner collaborators visibility linkRole folderId isStarred isDeleted deletedAt');
 
     return res.json(ownedDocs);
   } catch (error) {
@@ -149,15 +201,31 @@ export const updateDocument = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to modify this document' });
     }
 
+    const previousTitle = document.title;
+    let titleChanged = false;
+
     if (title !== undefined) {
-      document.title = title.trim() || 'Untitled document';
+      const nextTitle = title.trim() || 'Untitled document';
+      if (nextTitle !== previousTitle) {
+        titleChanged = true;
+      }
+      document.title = nextTitle;
     }
 
     if (content !== undefined) {
-      document.content = content;
+      document.content = sanitizeContent(content);
     }
 
     const updatedDocument = await document.save();
+
+    if (titleChanged) {
+      logActivity({
+        documentId: updatedDocument._id,
+        userId: req.user._id,
+        action: 'renamed',
+        details: `Renamed to "${updatedDocument.title}"`
+      });
+    }
 
     // Trigger auto-snapshot if enough time has passed
     createAutoSnapshotIfNeeded(updatedDocument._id, updatedDocument.title, updatedDocument.content, req.user._id);
@@ -191,15 +259,132 @@ export const deleteDocument = async (req, res) => {
       return res.status(403).json({ message: 'Only the owner can delete this document' });
     }
 
-    await Document.deleteOne({ _id: req.params.id });
+    // Soft delete: move to trash
+    document.isDeleted = true;
+    document.deletedAt = new Date();
+    await document.save();
 
-    return res.json({ message: 'Document deleted successfully', id: req.params.id });
+    return res.json({
+      success: true,
+      message: 'Document moved to trash',
+      id: req.params.id,
+      isDeleted: true
+    });
   } catch (error) {
     console.error('Delete document error:', error);
     if (error.kind === 'ObjectId') {
       return res.status(404).json({ message: 'Document not found' });
     }
     return res.status(500).json({ message: error.message || 'Failed to delete document' });
+  }
+};
+
+/**
+ * @desc    Restore a soft-deleted document from trash
+ * @route   PATCH /api/documents/:id/restore
+ * @access  Private (Owner only)
+ */
+export const restoreDocument = async (req, res) => {
+  try {
+    const document = await Document.findById(req.params.id);
+    if (!document) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    const ownerId = document.owner._id ? document.owner._id.toString() : document.owner.toString();
+    if (ownerId !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Only the owner can restore this document' });
+    }
+
+    document.isDeleted = false;
+    document.deletedAt = null;
+    await document.save();
+
+    return res.json({ success: true, message: 'Document restored successfully', id: req.params.id });
+  } catch (error) {
+    console.error('Restore document error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to restore document' });
+  }
+};
+
+/**
+ * @desc    Permanently delete a document forever
+ * @route   DELETE /api/documents/:id/permanent
+ * @access  Private (Owner only)
+ */
+export const permanentDeleteDocument = async (req, res) => {
+  try {
+    const document = await Document.findById(req.params.id);
+    if (!document) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    const ownerId = document.owner._id ? document.owner._id.toString() : document.owner.toString();
+    if (ownerId !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Only the owner can permanently delete this document' });
+    }
+
+    await Document.deleteOne({ _id: req.params.id });
+
+    return res.json({ success: true, message: 'Document permanently deleted', id: req.params.id });
+  } catch (error) {
+    console.error('Permanent delete document error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to delete document permanently' });
+  }
+};
+
+/**
+ * @desc    Toggle document starred status
+ * @route   PATCH /api/documents/:id/star
+ * @access  Private (Owner or Collaborator)
+ */
+export const toggleStarDocument = async (req, res) => {
+  try {
+    const document = await Document.findById(req.params.id);
+    if (!document) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    document.isStarred = !document.isStarred;
+    await document.save();
+
+    return res.json({ success: true, isStarred: document.isStarred, id: document._id });
+  } catch (error) {
+    console.error('Toggle star error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to toggle star' });
+  }
+};
+
+/**
+ * @desc    Move document to a folder (or root)
+ * @route   PATCH /api/documents/:id/move
+ * @access  Private (Owner only)
+ */
+export const moveDocumentToFolder = async (req, res) => {
+  try {
+    const { folderId } = req.body;
+    const document = await Document.findById(req.params.id);
+    if (!document) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    const ownerId = document.owner._id ? document.owner._id.toString() : document.owner.toString();
+    if (ownerId !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Only the owner can move this document' });
+    }
+
+    document.folderId = folderId || null;
+    await document.save();
+
+    return res.json({
+      success: true,
+      message: 'Document moved successfully',
+      folderId: document.folderId,
+      id: document._id
+    });
+  } catch (error) {
+    console.error('Move document error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to move document' });
   }
 };
 
@@ -246,10 +431,18 @@ export const uploadWordDocument = async (req, res) => {
     // Create new document in database owned by current user
     const document = await Document.create({
       title: docTitle,
-      content: convertedHtml,
+      content: sanitizeContent(convertedHtml),
       owner: req.user._id
     });
     console.log(`[Upload DOCX] Created document ${document._id} with title "${docTitle}"`);
+
+    // Record activity
+    logActivity({
+      documentId: document._id,
+      userId: req.user._id,
+      action: 'created',
+      details: `Imported "${originalName}" from Word (.docx)`
+    });
 
     return res.status(201).json(document);
   } catch (error) {
@@ -257,6 +450,52 @@ export const uploadWordDocument = async (req, res) => {
     return res.status(500).json({
       message: error.message || 'Failed to upload and process document'
     });
+  }
+};
+
+/**
+ * @desc    Search documents by title and content
+ * @route   GET /api/documents/search?q=...
+ * @access  Private (accessible documents only: owned or shared)
+ */
+export const searchDocuments = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || !q.trim()) {
+      return res.json([]);
+    }
+
+    const trimmedQuery = q.trim();
+    // Escape regex special chars
+    const safeRegex = new RegExp(trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
+    const searchCriteria = {
+      $and: [
+        { isDeleted: { $ne: true } },
+        {
+          $or: [
+            { owner: req.user._id },
+            { 'collaborators.userId': req.user._id }
+          ]
+        },
+        {
+          $or: [
+            { title: { $regex: safeRegex } },
+            { content: { $regex: safeRegex } }
+          ]
+        }
+      ]
+    };
+
+    const results = await Document.find(searchCriteria)
+      .populate('owner', 'name email')
+      .sort({ updatedAt: -1 })
+      .select('title createdAt updatedAt owner collaborators visibility linkRole isStarred folderId');
+
+    return res.json(results);
+  } catch (error) {
+    console.error('Search documents error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to search documents' });
   }
 };
 
