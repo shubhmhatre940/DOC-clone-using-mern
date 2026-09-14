@@ -1,15 +1,56 @@
-# Google Docs Clone (MERN Stack) — Phase 0 & Phase 1
+# Google Docs Clone (MERN Stack)
 
-A modern, modular **Google Docs clone** built with the **MERN stack** (MongoDB, Express.js, React, Node.js), styled with Tailwind CSS to accurately mirror the official Google Docs interface and user experience.
+A modern, full-featured **Google Docs clone** built with the **MERN stack** (MongoDB, Express.js, React, Node.js) and styled with Tailwind CSS to accurately mirror the official Google Docs interface, rich text editing experience, and real-time collaborative workspace.
 
 ---
 
-## 🚀 Overview
+## 🚀 Key Features
 
-- **Phase 0 (Setup & Architecture):** Monorepo structure with `/client` and `/server`, Mongoose database connection, Express middleware, Vite React setup with Tailwind CSS, health check API, and environment configurations.
-- **Phase 1 (Core CRUD & Document Management):** Full JWT authentication with bcrypt password hashing, document model and RESTful CRUD endpoints, Google Docs-style dashboard with template picker, paper canvas document editor powered by TipTap, inline document title editing, toolbar formatting, and manual/keyboard saving (`Ctrl+S` / `Cmd+S`).
+### 1. Real-Time Collaboration & Sync
+- **Yjs & WebSockets**: Conflict-free replicated data types (CRDTs) powering real-time co-authoring without lock contention.
+- **Collaborator Awareness**: Real-time cursor presence and collaborator avatars displayed in the navbar.
+- **Auto-Save & Status Indicators**: Seamless background persistence (`Saved to Drive`, `Saving...`, `Unsaved changes`).
 
-*Note: Real-time multi-user collaboration (WebSockets / Yjs) will be introduced in subsequent phases. This codebase provides a clean, modular foundation for extension.*
+### 2. Rich Text Editor & Google Docs Canvas
+- **TipTap Rich Text Engine**: Built on ProseMirror, featuring paragraph styles (Title, Subtitle, Headings 1–6), font families, font sizes, colors, highlights, alignments, lists (bulleted, numbered, checklist), indentations, and blockquotes.
+- **Google Paper Canvas**: Centered white document sheet with drop shadow (`shadow-md`) on light-gray canvas (`#f8f9fa`), with toggleable ruler and document outline sidebar.
+- **Reading & Viewing Modes**: Switch between **Editing**, **Suggesting**, and **Viewing** modes with dynamic permission-based controls.
+
+### 3. Page-Based Layout Features
+- **Pageless ↔ Paginated View**: Toggle between a modern continuous fluid document and a realistic paginated canvas.
+- **Page Orientation**: Switch between Portrait (`816px × 1056px`) and Landscape (`1056px × 816px`) layouts on demand.
+- **Multi-Column Formatting**: Seamlessly layout sections into 1, 2, or 3 columns.
+- **Headers & Footers**: Double-click or menu-driven header and footer editing overlay with customizable margins.
+- **Page Numbers**: Insert page numbers in top/bottom corners with dynamic counting.
+
+### 4. Word (.docx) Import & Multi-Format Export
+- **Word (.docx) Import**: Upload Word documents with automatic HTML conversion via Mammoth and seamless initial content seeding into Yjs.
+- **Multi-Format Export**:
+  - **PDF**: Pixel-perfect PDF generation via headless Puppeteer.
+  - **Word (.docx)**: Clean `.docx` document generation via `html-to-docx`.
+  - **Plain Text (`.txt`)** and **HTML (`.html`)**.
+
+### 5. Comprehensive Google Docs Menu Bar
+- **File**: New, Open, Make a copy, Share, Email, Export/Download, Rename, Move to folder, Move to trash, Version history, Details, Page setup, Print.
+- **Edit**: Undo, Redo, Cut, Copy, Paste, Select all, Find & Replace.
+- **View**: Mode selection, Ruler toggle, Document outline, Full screen, Pageless view.
+- **Insert**: Images, Interactive Tables, Charts (Bar, Column, Line, Pie), Drawings, Math/Equations, Watermarks, Smart Chips (Date, Person, File), Dropdowns, Special Characters, Horizontal Lines, Page & Section Breaks, Bookmarks, Table of Contents.
+- **Format**: Text styles, Capitalization, Line spacing, Alignment, Indentation, Columns, Headers & Footers, Page numbers, Page orientation, Clear formatting (`Ctrl+\`).
+- **Tools**: Word & character count statistics, Voice typing (Web Speech API), Citations & bibliography, Dictionary & thesaurus, Document translation, Spelling & grammar review.
+- **Extensions & Help**: Add-ons showcase, Keyboard shortcuts modal.
+
+### 6. Sharing, Permissions & Collaboration
+- **Role-Based Access Control**: Granular roles: **Owner**, **Editor**, **Commenter**, and **Viewer**.
+- **Share Modal**: Invite collaborators by email or generate public shareable links (`Restricted` or `Anyone with link`).
+- **Comments & Mentions**: Add comments to selections, reply to threads, and resolve comment items.
+- **Version History**: Review chronological revisions, view auto-snapshots, and restore past versions.
+- **Activity Log & Notifications**: Track document edits, renames, permissions changes, and notifications.
+
+### 7. Dashboard & File Organization
+- **Google Docs File Picker**: Clean dashboard with search, grid/list view toggles, and sorting.
+- **Template Gallery**: Pre-built templates (Resume, Project Proposal, Meeting Notes, Newsletter, etc.) with category filtering.
+- **Folder Management**: Create folders and organize documents with drag-and-drop or menu actions.
+- **Starred & Trash**: Quick-access starred documents and soft-delete trash bin with restore and permanent delete capabilities.
 
 ---
 
@@ -18,17 +59,23 @@ A modern, modular **Google Docs clone** built with the **MERN stack** (MongoDB, 
 ### Frontend
 - **Framework:** React 19 (Vite)
 - **Routing:** React Router v7
-- **Styling:** Tailwind CSS (Google Material Design color palette: `#1a73e8` Google Blue, `#f1f3f4` / `#f8f9fa` canvas)
-- **Rich Text Editor:** TipTap (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-underline`, `@tiptap/extension-text-align`, `@tiptap/extension-placeholder`)
+- **Styling:** Vanilla CSS & Tailwind CSS (Google Material Design color palette)
+- **Rich Text Editor:** TipTap (`@tiptap/react`, `@tiptap/starter-kit`, custom extensions for columns, page layout, text styling)
+- **Real-Time Collaboration:** `yjs`, `y-websocket`
 - **HTTP Client:** Axios (with Bearer token interceptor)
 - **Icons:** Lucide React
 
 ### Backend
 - **Runtime:** Node.js (ES Modules)
-- **Framework:** Express.js
+- **Framework:** Express.js with WebSockets (`ws`)
 - **Database:** MongoDB with Mongoose
-- **Auth:** JWT (`jsonwebtoken`) & password hashing with `bcryptjs`
-- **Security & Config:** CORS, Dotenv
+- **Real-Time Sync:** Yjs WebSocket server (`y-websocket/bin/utils`)
+- **File Processing & Conversion:**
+  - `mammoth`: Word `.docx` → HTML conversion
+  - `multer`: Multipart file uploads
+  - `puppeteer`: High-fidelity PDF export
+  - `html-to-docx`: HTML → Word `.docx` export
+- **Auth & Security:** JWT (`jsonwebtoken`), `bcryptjs`, CORS, Rate Limiting (`express-rate-limit`), Sanitization (`isomorphic-dompurify`)
 
 ---
 
@@ -36,55 +83,39 @@ A modern, modular **Google Docs clone** built with the **MERN stack** (MongoDB, 
 
 ```
 DOCS_mern/
-├── client/                     # Frontend (React + Vite + Tailwind CSS)
+├── client/                                 # Frontend (React + Vite + Tailwind CSS)
 │   ├── src/
-│   │   ├── api/
-│   │   │   ├── axios.js        # Configured Axios instance with auth interceptor
-│   │   │   └── documents.js    # Document API service
+│   │   ├── api/                            # Axios API services (auth, documents, comments, versions, folders)
 │   │   ├── components/
-│   │   │   ├── common/
-│   │   │   │   ├── Navbar.jsx          # Top Google Docs search & user bar
-│   │   │   │   └── ProtectedRoute.jsx  # Authentication route guard
-│   │   │   ├── dashboard/
-│   │   │   │   ├── TemplateHeader.jsx  # "+ Blank document" template row
-│   │   │   │   ├── DocumentCard.jsx    # Google Docs style document card with menu
-│   │   │   │   └── DocumentList.jsx    # Document grid & list display
-│   │   │   └── editor/
-│   │   │       ├── EditorNavbar.jsx    # Editable title, Google Docs logo, save status
-│   │   │       ├── EditorToolbar.jsx   # Formatting toolbar (B, I, U, S, H1-H3, Align, Lists)
-│   │   │       └── TiptapEditor.jsx    # Paper-styled page canvas with margins & shadow
-│   │   ├── context/
-│   │   │   └── AuthContext.jsx         # Auth state provider (login, signup, logout)
+│   │   │   ├── activity/                   # Activity log modal & drawer
+│   │   │   ├── comments/                   # Comment bubbles, sidebars & reply threads
+│   │   │   ├── common/                     # Navbar, search, modals, protected routes
+│   │   │   ├── dashboard/                  # Template gallery, document grid & list cards
+│   │   │   ├── editor/                     # Editor canvas, toolbar, menu bar, page layout container
+│   │   │   ├── history/                    # Version history timeline & snapshot diffs
+│   │   │   ├── insert/                     # Modals for charts, drawings, equations, watermarks, etc.
+│   │   │   ├── notifications/              # Notification dropdown & alerts
+│   │   │   └── tools/                      # Word count, voice typing, citations, dictionary modals
+│   │   ├── context/                        # AuthContext, NotificationContext
+│   │   ├── hooks/                          # Custom React hooks
 │   │   ├── pages/
-│   │   │   ├── LoginPage.jsx           # Clean Google-style Sign In
-│   │   │   ├── SignupPage.jsx          # Google-style Account Creation
-│   │   │   ├── DashboardPage.jsx       # Docs file picker dashboard
-│   │   │   └── EditorPage.jsx          # Paper canvas document editor
-│   │   ├── App.jsx                     # Route definitions
-│   │   ├── index.css                   # Tailwind CSS & TipTap typography
-│   │   └── main.jsx
-│   ├── .env.example
-│   ├── tailwind.config.js
+│   │   │   ├── LoginPage.jsx               # Google-style Sign In
+│   │   │   ├── SignupPage.jsx              # Google-style Sign Up
+│   │   │   ├── DashboardPage.jsx           # File dashboard
+│   │   │   └── EditorPage.jsx              # Main document editor workspace
+│   │   ├── App.jsx                         # Route definitions
+│   │   └── index.css                       # Design system & paper typography styles
 │   └── package.json
 │
-├── server/                     # Backend (Express + Node + Mongoose)
-│   ├── config/
-│   │   └── db.js               # MongoDB connection
-│   ├── controllers/
-│   │   ├── authController.js   # Auth handler (register, login, getMe)
-│   │   └── documentController.js # CRUD handlers for user documents
-│   ├── middleware/
-│   │   ├── auth.js             # JWT verification middleware
-│   │   └── errorHandler.js     # Standardized JSON error response
-│   ├── models/
-│   │   ├── User.js             # User schema with bcrypt password hashing
-│   │   └── Document.js         # Document schema (title, content, owner, timestamps)
-│   ├── routes/
-│   │   ├── healthRoutes.js     # GET /api/health
-│   │   ├── authRoutes.js       # /api/auth
-│   │   └── documentRoutes.js   # /api/documents
-│   ├── .env.example
-│   ├── server.js
+├── server/                                 # Backend (Express + WebSockets + Mongoose)
+│   ├── config/                             # MongoDB connection
+│   ├── controllers/                        # Business logic for auth, documents, export, share, etc.
+│   ├── middleware/                         # Auth verification, permissions, rate limiters, error handling
+│   ├── models/                             # Mongoose schemas (User, Document, Comment, Version, Folder, Notification)
+│   ├── routes/                             # Express REST API routes
+│   ├── services/                           # Background services (snapshots, notifications)
+│   ├── utils/                              # Content sanitization, activity log helpers
+│   ├── server.js                           # Express app + HTTP & WebSocket server initialization
 │   └── package.json
 │
 └── README.md
@@ -102,7 +133,7 @@ DOCS_mern/
 
 ### 1. Backend Setup
 
-1. Open a terminal and navigate to the `server/` directory:
+1. Open a terminal and navigate to `server/`:
    ```bash
    cd server
    ```
@@ -117,7 +148,7 @@ DOCS_mern/
    ```bash
    cp .env.example .env
    ```
-   *Verify that `MONGO_URI` matches your running MongoDB instance.*
+   *Verify that `MONGO_URI` points to your MongoDB instance (e.g. `mongodb://localhost:27017/google-docs-clone`).*
 
 4. Start the backend server:
    ```bash
@@ -125,13 +156,13 @@ DOCS_mern/
    # or
    npm start
    ```
-   Server will run on `http://localhost:5000`.
+   The backend API and WebSocket server will run on `http://localhost:5000`.
 
 ---
 
 ### 2. Frontend Setup
 
-1. Open another terminal and navigate to the `client/` directory:
+1. Open another terminal and navigate to `client/`:
    ```bash
    cd client
    ```
@@ -146,7 +177,7 @@ DOCS_mern/
    ```bash
    cp .env.example .env
    ```
-   *Default points to `http://localhost:5000/api`.*
+   *Default API URL points to `http://localhost:5000/api`.*
 
 4. Start the Vite development server:
    ```bash
@@ -156,30 +187,49 @@ DOCS_mern/
 
 ---
 
-## 📡 API Endpoints
-
-### Health Check
-- `GET /api/health` — Public server status
+## 📡 API Overview
 
 ### Authentication (`/api/auth`)
-- `POST /api/auth/register` — Create account (`name`, `email`, `password`)
-- `POST /api/auth/login` — Sign in (`email`, `password`) -> Returns JWT
-- `GET /api/auth/me` — Get current logged-in user profile (Protected)
+- `POST /api/auth/register` — Register a new account
+- `POST /api/auth/login` — Sign in and obtain JWT
+- `GET /api/auth/me` — Get current logged-in user profile
 
-### Documents (`/api/documents`) — All Protected
-- `POST /api/documents` — Create a new blank document
-- `GET /api/documents` — List all documents owned by logged-in user
-- `GET /api/documents/:id` — Fetch single document by ID (Owner only)
-- `PUT /api/documents/:id` — Update document title and/or content
-- `DELETE /api/documents/:id` — Delete document by ID (Owner only)
+### Documents (`/api/documents`)
+- `POST /api/documents` — Create a blank or template-seeded document
+- `POST /api/documents/upload` — Upload and convert a Word `.docx` file
+- `GET /api/documents` — List user's documents (supports `?type=shared`, `?type=owned`, `?folder=...`)
+- `GET /api/documents/:id` — Fetch document by ID with permission checks
+- `PUT /api/documents/:id` — Update title, content, or page settings
+- `DELETE /api/documents/:id` — Soft-delete to trash
+- `PATCH /api/documents/:id/restore` — Restore from trash
+- `DELETE /api/documents/:id/permanent` — Permanently delete
+- `PATCH /api/documents/:id/star` — Toggle starred status
+- `PATCH /api/documents/:id/move` — Move document to folder
+- `GET /api/documents/search` — Search documents by query
+
+### Sharing & Collaboration
+- `GET /api/documents/:id/collaborators` — List collaborators
+- `POST /api/documents/:id/collaborators` — Add collaborator by email
+- `DELETE /api/documents/:id/collaborators/:userId` — Remove collaborator
+- `PATCH /api/documents/:id/visibility` — Update visibility (`restricted` / `anyone-with-link`)
+
+### Export (`/api/documents/:id/export`)
+- `GET /api/documents/:id/export?format=pdf` — Export as PDF (Puppeteer)
+- `GET /api/documents/:id/export?format=docx` — Export as Word document
+- `GET /api/documents/:id/export?format=txt` — Export as plain text
+- `GET /api/documents/:id/export?format=html` — Export as HTML
+
+### Versions & History (`/api/documents/:id/versions`)
+- `GET /api/documents/:id/versions` — List saved revisions & snapshots
+- `POST /api/documents/:id/versions` — Create a named version
+- `POST /api/documents/:id/versions/:versionId/restore` — Rollback document to revision
+
+### Comments (`/api/documents/:id/comments`)
+- `GET /api/documents/:id/comments` — Get document comments
+- `POST /api/documents/:id/comments` — Add comment or reply
+- `PATCH /api/documents/:id/comments/:commentId` — Resolve/edit comment
 
 ---
 
-## 🎨 Google Docs UI Features
-- **Top App Bar & Search:** Google Docs styled top bar with search filter and profile avatar.
-- **Start New Document:** Google Docs template banner with "+ Blank document" card with official colored plus emblem.
-- **Document Cards:** Thumbnail preview card showing title, last modified date, and 3-dot dropdown with delete action.
-- **Editable Document Title:** In-navbar document title with blur/enter persistence.
-- **Save Status Indicator:** Displays `Saved to Drive`, `Saving...`, or `Unsaved changes` with subtle icons.
-- **Paper Canvas:** Centered white document sheet with drop shadow (`shadow-md`) on light-gray canvas (`#f8f9fa`).
-- **Keyboard Shortcuts:** `Ctrl + S` or `Cmd + S` saves changes instantly.
+## 📄 License
+This project is open source and available under the [MIT License](LICENSE).
