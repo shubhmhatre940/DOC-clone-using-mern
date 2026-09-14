@@ -124,6 +124,14 @@ const EditorMenuBar = ({
   onOpenPreferences,
   onOpenAccessibility,
 
+  // Page layout features
+  pageSettings = {},
+  onTogglePrintLayout,
+  onSetOrientation,
+  onEditHeaderFooter,
+  onSetPageNumbers,
+  onInsertColumnBreak,
+
   // Help actions
   onOpenShortcuts
 }) => {
@@ -291,6 +299,24 @@ const EditorMenuBar = ({
       editor.chain().focus().updateAttributes('heading', { blockStyle: updatedStyle }).run();
     } else {
       editor.chain().focus().updateAttributes('paragraph', { blockStyle: updatedStyle }).run();
+    }
+  };
+
+  const handleSetColumns = (columns) => {
+    if (!editor) return;
+    if (columns === 1) {
+      editor.chain().focus().unsetColumns().run();
+    } else {
+      editor.chain().focus().setColumns(columns).run();
+    }
+  };
+
+  const handleInsertColumnBreak = () => {
+    if (!editor) return;
+    if (onInsertColumnBreak) {
+      onInsertColumnBreak();
+    } else {
+      editor.chain().focus().insertColumnBreak().run();
     }
   };
 
@@ -620,6 +646,20 @@ const EditorMenuBar = ({
                   {showToolbar && <Check className="w-3.5 h-3.5 text-blue-600" />}
                 </span>
                 Show toolbar
+              </span>
+            </button>
+
+            {/* Show Print Layout (Paginated vs Pageless) */}
+            <button
+              type="button"
+              onClick={() => executeAction(onTogglePrintLayout)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <span className="w-4 flex justify-center">
+                  {!pageSettings?.isPageless && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                </span>
+                Show print layout (Pages)
               </span>
             </button>
 
@@ -1622,6 +1662,185 @@ const EditorMenuBar = ({
                     className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
                   >
                     <span>Right-to-left (RTL)</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Columns Submenu */}
+            <div
+              className="relative"
+              onMouseEnter={() => setActiveSubmenu('format-columns')}
+              onMouseLeave={() => setActiveSubmenu(null)}
+            >
+              <button
+                type="button"
+                onClick={() => setActiveSubmenu(activeSubmenu === 'format-columns' ? null : 'format-columns')}
+                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <Columns className="w-4 h-4 text-gray-500" />
+                  Columns
+                </span>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </button>
+
+              {activeSubmenu === 'format-columns' && (
+                <div className="absolute left-full top-0 -ml-1 w-56 bg-white border border-gray-200 rounded-sm shadow-lg py-1.5 z-50">
+                  <button
+                    type="button"
+                    onClick={() => executeAction(() => handleSetColumns(1))}
+                    className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+                  >
+                    <span>1 Column (Standard)</span>
+                    {!editor?.isActive('columnBlock') && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => executeAction(() => handleSetColumns(2))}
+                    className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+                  >
+                    <span>2 Columns</span>
+                    {editor?.isActive('columnBlock', { columns: 2 }) && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => executeAction(() => handleSetColumns(3))}
+                    className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+                  >
+                    <span>3 Columns</span>
+                    {editor?.isActive('columnBlock', { columns: 3 }) && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                  </button>
+
+                  <div className="my-1 border-t border-gray-200" />
+
+                  <button
+                    type="button"
+                    onClick={() => executeAction(handleInsertColumnBreak)}
+                    className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+                  >
+                    <span>Insert column break</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Page Orientation Submenu */}
+            <div
+              className="relative"
+              onMouseEnter={() => setActiveSubmenu('format-orientation')}
+              onMouseLeave={() => setActiveSubmenu(null)}
+            >
+              <button
+                type="button"
+                onClick={() => setActiveSubmenu(activeSubmenu === 'format-orientation' ? null : 'format-orientation')}
+                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-gray-500" />
+                  Page orientation
+                </span>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </button>
+
+              {activeSubmenu === 'format-orientation' && (
+                <div className="absolute left-full top-0 -ml-1 w-52 bg-white border border-gray-200 rounded-sm shadow-lg py-1.5 z-50">
+                  <button
+                    type="button"
+                    onClick={() => executeAction(() => onSetOrientation && onSetOrientation('portrait'))}
+                    className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+                  >
+                    <span>Portrait (8.5 × 11 in)</span>
+                    {pageSettings?.orientation !== 'landscape' && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => executeAction(() => onSetOrientation && onSetOrientation('landscape'))}
+                    className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+                  >
+                    <span>Landscape (11 × 8.5 in)</span>
+                    {pageSettings?.orientation === 'landscape' && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Headers & Footers */}
+            <button
+              type="button"
+              onClick={() => executeAction(onEditHeaderFooter)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-gray-500" />
+                Headers & footers
+              </span>
+            </button>
+
+            {/* Page numbers Submenu */}
+            <div
+              className="relative"
+              onMouseEnter={() => setActiveSubmenu('format-page-numbers')}
+              onMouseLeave={() => setActiveSubmenu(null)}
+            >
+              <button
+                type="button"
+                onClick={() => setActiveSubmenu(activeSubmenu === 'format-page-numbers' ? null : 'format-page-numbers')}
+                className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <Pilcrow className="w-4 h-4 text-gray-500" />
+                  Page numbers
+                </span>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </button>
+
+              {activeSubmenu === 'format-page-numbers' && (
+                <div className="absolute left-full top-0 -ml-1 w-60 bg-white border border-gray-200 rounded-sm shadow-lg py-1.5 z-50">
+                  <button
+                    type="button"
+                    onClick={() => executeAction(() => onSetPageNumbers && onSetPageNumbers(true, 'header-right'))}
+                    className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+                  >
+                    <span>Top of page (Right)</span>
+                    {pageSettings?.showPageNumbers && pageSettings?.pageNumberPosition === 'header-right' && (
+                      <Check className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => executeAction(() => onSetPageNumbers && onSetPageNumbers(true, 'footer-right'))}
+                    className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+                  >
+                    <span>Bottom of page (Right)</span>
+                    {pageSettings?.showPageNumbers && pageSettings?.pageNumberPosition === 'footer-right' && (
+                      <Check className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => executeAction(() => onSetPageNumbers && onSetPageNumbers(true, 'footer-center'))}
+                    className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 transition text-left cursor-pointer"
+                  >
+                    <span>Bottom of page (Center)</span>
+                    {pageSettings?.showPageNumbers && pageSettings?.pageNumberPosition === 'footer-center' && (
+                      <Check className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                  </button>
+
+                  <div className="my-1 border-t border-gray-200" />
+
+                  <button
+                    type="button"
+                    onClick={() => executeAction(() => onSetPageNumbers && onSetPageNumbers(false, 'footer-right'))}
+                    className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-100 text-rose-600 transition text-left cursor-pointer"
+                  >
+                    <span>Remove page numbers</span>
                   </button>
                 </div>
               )}

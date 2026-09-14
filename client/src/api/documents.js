@@ -50,9 +50,9 @@ export const deleteDocument = async (id) => {
  * @param {string} id - Document ID
  * @param {'pdf' | 'docx' | 'txt' | 'html'} format - Target export format
  */
-export const exportDocument = async (id, format) => {
+export const exportDocument = async (id, format, params = {}) => {
   const response = await API.get(`/documents/${id}/export`, {
-    params: { format },
+    params: { format, ...params },
     responseType: 'blob'
   });
   return response;

@@ -86,7 +86,14 @@ const EditorNavbar = ({
   onOpenCompare,
   onOpenCitations,
   onOpenPreferences,
-  onOpenAccessibility
+  onOpenAccessibility,
+  // Page layout features
+  pageSettings = {},
+  onTogglePrintLayout,
+  onSetOrientation,
+  onEditHeaderFooter,
+  onSetPageNumbers,
+  onInsertColumnBreak
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [localTitle, setLocalTitle] = useState(title || 'Untitled document');
@@ -276,6 +283,13 @@ const EditorNavbar = ({
               onOpenCitations={onOpenCitations}
               onOpenPreferences={onOpenPreferences}
               onOpenAccessibility={onOpenAccessibility}
+              // Page layout features
+              pageSettings={pageSettings}
+              onTogglePrintLayout={onTogglePrintLayout}
+              onSetOrientation={onSetOrientation}
+              onEditHeaderFooter={onEditHeaderFooter}
+              onSetPageNumbers={onSetPageNumbers}
+              onInsertColumnBreak={onInsertColumnBreak}
             />
           </div>
         </div>

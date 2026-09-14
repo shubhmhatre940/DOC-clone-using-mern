@@ -271,6 +271,36 @@
   border-radius: 9999px;
 }
 
+/* Multi-column layout styles */
+.doc-columns-container {
+  margin: 1rem 0;
+}
+.doc-columns-1 {
+  column-count: 1 !important;
+}
+.doc-columns-2 {
+  column-count: 2 !important;
+  column-gap: 2rem !important;
+  column-rule: 1px solid #dadce0;
+}
+.doc-columns-3 {
+  column-count: 3 !important;
+  column-gap: 1.5rem !important;
+  column-rule: 1px solid #dadce0;
+}
+.column-break {
+  break-after: column;
+  page-break-after: column;
+}
+
+/* Paginated paper styles */
+.page-sheet {
+  box-shadow: 0 1px 3px 1px rgba(60, 64, 67, 0.15), 0 2px 8px 4px rgba(60, 64, 67, 0.08);
+}
+.dark .page-sheet {
+  box-shadow: 0 1px 3px 1px rgba(0, 0, 0, 0.5);
+}
+
 /* Line Numbers Feature */
 .show-line-numbers {
   counter-reset: line-number;

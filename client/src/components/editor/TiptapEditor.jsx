@@ -18,6 +18,8 @@ import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 import EditorToolbar from './EditorToolbar';
 import CommentBubble from '../comments/CommentBubble';
+import PageLayoutContainer from './PageLayoutContainer';
+import { ColumnBlock, ColumnBreak } from './ColumnExtension';
 
 // Custom extension to attach block-level formatting (text direction dir="rtl|ltr" and CSS styles)
 const BlockFormatting = Extension.create({
@@ -109,7 +111,11 @@ const TiptapEditor = ({
   showLineNumbers = false,
   onStartComment,
   isReadingMode = false,
-  onExitReadingMode
+  onExitReadingMode,
+  pageSettings = {},
+  onUpdatePageSettings,
+  isEditingHeaderFooter = false,
+  onCloseHeaderFooter
 }) => {
   const effectiveEditable = isEditable && !isReadingMode;
   // Build extension list dynamically based on collaboration availability
@@ -123,6 +129,8 @@ const TiptapEditor = ({
     }),
     Underline,
     BlockFormatting,
+    ColumnBlock,
+    ColumnBreak,
     TextStyle,
     FontFamily,
     FontSize,
@@ -373,27 +381,25 @@ const TiptapEditor = ({
       {/* Google Docs Formatting Toolbar (Toggleable from View menu) */}
       {showToolbar && !isReadingMode && <EditorToolbar editor={editor} editable={isEditable} />}
 
-      {/* Editor Canvas Area */}
-      <div
-        className="flex-1 overflow-auto py-4 sm:py-8 px-2 sm:px-4 flex justify-center cursor-text"
-        onClick={() => effectiveEditable && editor?.commands.focus()}
+      {/* Editor Canvas Area with Page Layout (Pageless vs Paginated, Orientation, Headers/Footers, Page Numbers) */}
+      <PageLayoutContainer
+        isPageless={pageSettings.isPageless}
+        orientation={pageSettings.orientation}
+        headerText={pageSettings.headerText}
+        footerText={pageSettings.footerText}
+        showPageNumbers={pageSettings.showPageNumbers}
+        pageNumberPosition={pageSettings.pageNumberPosition}
+        onUpdatePageSettings={onUpdatePageSettings}
+        isEditable={effectiveEditable}
+        zoomLevel={zoomLevel}
+        showLineNumbers={showLineNumbers}
+        isReadingMode={isReadingMode}
+        editor={editor}
+        isEditingHeaderFooter={isEditingHeaderFooter}
+        onCloseHeaderFooter={onCloseHeaderFooter}
       >
-        {/* Paper Sheet (Standard US Letter 8.5" x 11" feel or clean article in reading mode) with Zoom scaling */}
-        <div
-          className={`w-full transition-all duration-150 ${
-            isReadingMode
-              ? 'max-w-[760px] min-h-[900px] bg-white rounded-lg shadow-sm border border-gray-200 px-8 sm:px-14 md:px-18 py-10 sm:py-16 text-[17px] leading-relaxed font-serif text-gray-900'
-              : 'max-w-[816px] min-h-[1056px] bg-white rounded-xs shadow-[0_1px_3px_1px_rgba(60,64,67,0.15)] border border-gray-200 dark:border-[#383a3d] px-6 sm:px-12 md:px-16 py-8 sm:py-16'
-          } ${showLineNumbers && !isReadingMode ? 'show-line-numbers' : ''}`}
-          style={{
-            transform: zoomLevel !== 100 ? `scale(${zoomLevel / 100})` : undefined,
-            transformOrigin: 'top center'
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <EditorContent editor={editor} />
-        </div>
-      </div>
+        <EditorContent editor={editor} />
+      </PageLayoutContainer>
     </div>
   );
 };

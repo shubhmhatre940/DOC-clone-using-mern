@@ -35,6 +35,23 @@ const generateHtmlDocument = (title, bodyContent) => {
       margin: 0;
       border: none;
     }
+    .doc-columns-1 {
+      column-count: 1 !important;
+    }
+    .doc-columns-2 {
+      column-count: 2 !important;
+      column-gap: 2rem !important;
+      column-rule: 1px solid #dadce0;
+    }
+    .doc-columns-3 {
+      column-count: 3 !important;
+      column-gap: 1.5rem !important;
+      column-rule: 1px solid #dadce0;
+    }
+    .column-break {
+      break-after: column;
+      page-break-after: column;
+    }
     table {
       border-collapse: collapse;
       width: 100%;
@@ -151,6 +168,39 @@ export const exportDocument = async (req, res) => {
 
       case 'pdf': {
         const fullHtml = generateHtmlDocument(docTitle, content);
+        const pageSettings = document.pageSettings || {};
+        const isLandscape = (req.query.orientation || pageSettings.orientation || 'portrait').toLowerCase() === 'landscape';
+        const headerText = req.query.headerText !== undefined ? req.query.headerText : (pageSettings.headerText || '');
+        const footerText = req.query.footerText !== undefined ? req.query.footerText : (pageSettings.footerText || '');
+        const showPageNumbers = req.query.showPageNumbers !== undefined ? req.query.showPageNumbers === 'true' : !!pageSettings.showPageNumbers;
+        const pageNumberPosition = req.query.pageNumberPosition || pageSettings.pageNumberPosition || 'footer-right';
+
+        const hasHeader = !!headerText || (showPageNumbers && pageNumberPosition === 'header-right');
+        const hasFooter = !!footerText || (showPageNumbers && pageNumberPosition !== 'header-right');
+        const displayHeaderFooter = hasHeader || hasFooter;
+
+        let headerTemplate = '<div></div>';
+        if (hasHeader) {
+          headerTemplate = `
+            <div style="font-size: 9px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #5f6368; width: 100%; padding: 0 1in; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center;">
+              <span>${headerText}</span>
+              ${showPageNumbers && pageNumberPosition === 'header-right' ? '<span><span class="pageNumber"></span> / <span class="totalPages"></span></span>' : '<span></span>'}
+            </div>
+          `;
+        }
+
+        let footerTemplate = '<div></div>';
+        if (hasFooter) {
+          const isCenter = pageNumberPosition === 'footer-center';
+          footerTemplate = `
+            <div style="font-size: 9px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #5f6368; width: 100%; padding: 0 1in; box-sizing: border-box; display: flex; justify-content: ${isCenter ? 'center' : 'space-between'}; align-items: center;">
+              ${!isCenter && footerText ? `<span>${footerText}</span>` : (!isCenter ? '<span></span>' : '')}
+              ${showPageNumbers && pageNumberPosition !== 'header-right' ? `<span>${isCenter && footerText ? footerText + ' — ' : ''}<span class="pageNumber"></span> / <span class="totalPages"></span></span>` : ''}
+              ${!showPageNumbers && footerText && !isCenter ? '<span></span>' : ''}
+            </div>
+          `;
+        }
+
         const browser = await puppeteer.launch({
           headless: true,
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
@@ -160,6 +210,10 @@ export const exportDocument = async (req, res) => {
           await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
           const u8Array = await page.pdf({
             format: 'Letter',
+            landscape: isLandscape,
+            displayHeaderFooter,
+            headerTemplate,
+            footerTemplate,
             margin: {
               top: '1in',
               right: '1in',

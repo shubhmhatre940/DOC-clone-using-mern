@@ -9,7 +9,7 @@ import ShareModal from '../components/editor/ShareModal';
 import DocumentDetailsModal from '../components/editor/DocumentDetailsModal';
 import ShortcutsModal from '../components/editor/ShortcutsModal';
 import { useAutosave } from '../hooks/useAutosave';
-import { getDocumentById, createDocument, deleteDocument, exportDocument } from '../api/documents';
+import { getDocumentById, createDocument, updateDocument, deleteDocument, exportDocument } from '../api/documents';
 import { getComments, createComment, addReply, updateComment, deleteComment as apiDeleteComment } from '../api/comments';
 import CommentSidebar from '../components/comments/CommentSidebar';
 import TableOfContentsSidebar from '../components/editor/TableOfContentsSidebar';
@@ -106,6 +106,17 @@ const EditorPage = () => {
   const [isBookmarksModalOpen, setIsBookmarksModalOpen] = useState(false);
   const [isBuildingBlocksOpen, setIsBuildingBlocksOpen] = useState(false);
   const [liveStats, setLiveStats] = useState({ words: 0, characters: 0, pages: 0 });
+
+  // Page layout state (Pageless vs Paginated, Orientation, Headers/Footers, Page Numbers)
+  const [pageSettings, setPageSettings] = useState({
+    isPageless: false,
+    orientation: 'portrait',
+    headerText: '',
+    footerText: '',
+    showPageNumbers: false,
+    pageNumberPosition: 'footer-right'
+  });
+  const [isEditingHeaderFooter, setIsEditingHeaderFooter] = useState(false);
 
   // Load user preferences on mount
   useEffect(() => {
@@ -225,6 +236,9 @@ const EditorPage = () => {
       setDocumentData(data);
       setTitle(data.title || 'Untitled document');
       setContent(data.content || '');
+      if (data.pageSettings) {
+        setPageSettings((prev) => ({ ...prev, ...data.pageSettings }));
+      }
 
       // Phase 5: Load document comments
       try {
@@ -491,6 +505,48 @@ const EditorPage = () => {
     editor?.chain().focus().insertContent('<div class="page-break" data-break="page"></div><p></p>').run();
   };
 
+  const handleUpdatePageSettings = useCallback(
+    (newSettings) => {
+      setPageSettings((prev) => {
+        const updated = { ...prev, ...newSettings };
+        updateDocument(id, { pageSettings: updated }).catch((err) => {
+          console.error('Failed to save page settings:', err);
+        });
+        return updated;
+      });
+    },
+    [id]
+  );
+
+  const handleTogglePrintLayout = useCallback(() => {
+    handleUpdatePageSettings({ isPageless: !pageSettings.isPageless });
+  }, [pageSettings.isPageless, handleUpdatePageSettings]);
+
+  const handleSetOrientation = useCallback(
+    (orientation) => {
+      handleUpdatePageSettings({ orientation, isPageless: false });
+    },
+    [handleUpdatePageSettings]
+  );
+
+  const handleSetPageNumbers = useCallback(
+    (showPageNumbers, position) => {
+      handleUpdatePageSettings({ showPageNumbers, pageNumberPosition: position });
+    },
+    [handleUpdatePageSettings]
+  );
+
+  const handleEditHeaderFooter = useCallback(() => {
+    if (pageSettings.isPageless) {
+      handleUpdatePageSettings({ isPageless: false });
+    }
+    setIsEditingHeaderFooter(true);
+  }, [pageSettings.isPageless, handleUpdatePageSettings]);
+
+  const handleInsertColumnBreak = useCallback(() => {
+    editor?.chain().focus().insertColumnBreak().run();
+  }, [editor]);
+
   const handleProofread = () => {
     if (!editor) return;
     editor.chain().focus().run();
@@ -614,7 +670,13 @@ const EditorPage = () => {
   const handleExport = async (format) => {
     try {
       setExportLoadingFormat(format);
-      const response = await exportDocument(id, format);
+      const response = await exportDocument(id, format, {
+        orientation: pageSettings.orientation,
+        headerText: pageSettings.headerText,
+        footerText: pageSettings.footerText,
+        showPageNumbers: pageSettings.showPageNumbers,
+        pageNumberPosition: pageSettings.pageNumberPosition
+      });
 
       const safeTitle = (title || 'Untitled document').trim().replace(/[/\\?%*:|"<>]/g, '_');
       const filename = `${safeTitle}.${format}`;
@@ -769,6 +831,13 @@ const EditorPage = () => {
             setIsPreferencesOpen(true);
           }}
           onOpenAccessibility={handleOpenAccessibility}
+          // Page layout features
+          pageSettings={pageSettings}
+          onTogglePrintLayout={handleTogglePrintLayout}
+          onSetOrientation={handleSetOrientation}
+          onEditHeaderFooter={handleEditHeaderFooter}
+          onSetPageNumbers={handleSetPageNumbers}
+          onInsertColumnBreak={handleInsertColumnBreak}
         />
       )}
 
@@ -795,6 +864,11 @@ const EditorPage = () => {
           onStartComment={handleStartComment}
           isReadingMode={isReadingMode}
           onExitReadingMode={() => setIsReadingMode(false)}
+          // Page layout features
+          pageSettings={pageSettings}
+          onUpdatePageSettings={handleUpdatePageSettings}
+          isEditingHeaderFooter={isEditingHeaderFooter}
+          onCloseHeaderFooter={() => setIsEditingHeaderFooter(false)}
         />
 
         {/* Floating Live Word Count Badge */}

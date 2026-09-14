@@ -71,6 +71,35 @@ const documentSchema = new mongoose.Schema(
     deletedAt: {
       type: Date,
       default: null
+    },
+    // Page-based layout configuration
+    pageSettings: {
+      isPageless: {
+        type: Boolean,
+        default: false
+      },
+      orientation: {
+        type: String,
+        enum: ['portrait', 'landscape'],
+        default: 'portrait'
+      },
+      headerText: {
+        type: String,
+        default: ''
+      },
+      footerText: {
+        type: String,
+        default: ''
+      },
+      showPageNumbers: {
+        type: Boolean,
+        default: false
+      },
+      pageNumberPosition: {
+        type: String,
+        enum: ['header-right', 'footer-right', 'footer-center'],
+        default: 'footer-right'
+      }
     }
   },
   {

@@ -11,12 +11,13 @@ import { logActivity } from '../services/activityService.js';
  */
 export const createDocument = async (req, res) => {
   try {
-    const { title, content } = req.body;
+    const { title, content, pageSettings } = req.body;
 
     const document = await Document.create({
       title: title || 'Untitled document',
       content: sanitizeContent(content !== undefined ? content : ''),
-      owner: req.user._id
+      owner: req.user._id,
+      ...(pageSettings ? { pageSettings } : {})
     });
 
     // Create initial version snapshot asynchronously
@@ -174,7 +175,7 @@ export const getDocumentById = async (req, res) => {
  */
 export const updateDocument = async (req, res) => {
   try {
-    const { title, content } = req.body;
+    const { title, content, pageSettings } = req.body;
     const document = req.doc || (await Document.findById(req.params.id));
 
     if (!document) {
@@ -214,6 +215,11 @@ export const updateDocument = async (req, res) => {
 
     if (content !== undefined) {
       document.content = sanitizeContent(content);
+    }
+
+    if (pageSettings !== undefined) {
+      const existing = document.pageSettings ? (document.pageSettings.toObject ? document.pageSettings.toObject() : document.pageSettings) : {};
+      document.pageSettings = { ...existing, ...pageSettings };
     }
 
     const updatedDocument = await document.save();

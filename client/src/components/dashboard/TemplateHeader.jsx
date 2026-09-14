@@ -8,6 +8,7 @@ const TemplateHeader = () => {
   const [creating, setCreating] = useState(false);
   const [creatingTemplateId, setCreatingTemplateId] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showAllTemplates, setShowAllTemplates] = useState(false);
@@ -76,15 +77,21 @@ const TemplateHeader = () => {
       const formData = new FormData();
       formData.append('file', file);
 
+      console.log('[Frontend Upload] Preparing to upload file:', file.name, 'size:', file.size);
+      for (const [key, value] of formData.entries()) {
+        console.log(`[Frontend Upload FormData] key: "${key}", value:`, value);
+      }
+
       const createdDoc = await uploadDocument(formData);
+      console.log('[Frontend Upload] Successfully created doc:', createdDoc?._id);
       navigate(`/document/${createdDoc._id}`);
     } catch (err) {
       console.error('Failed to upload docx file:', err);
       const serverMsg = err.response?.data?.message;
       const networkMsg = err.message;
       const errMsg = serverMsg || (networkMsg ? `Upload failed: ${networkMsg}` : 'Could not read this file — please make sure it is a valid .docx file.');
-      alert(errMsg);
       setUploadError(errMsg);
+      alert(errMsg);
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
