@@ -62,33 +62,38 @@ const allowedOrigins = [
   'http://127.0.0.1:3000'
 ].filter(Boolean);
 
+// Matches Vercel production and preview deployment URLs for this app
+const vercelDomainRegex = /^https:\/\/doc-clone-using-mern(-[a-z0-9-]+)?\.vercel\.app$/i;
+
 // Local private network regex for LAN dev testing (e.g. testing on mobile/tablets locally)
 const localNetworkOriginRegex = /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}):(5173|3000)$/;
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow non-browser requests (e.g. mobile apps, server-to-server, curl, health checks) without origin header
-      if (!origin) {
-        return callback(null, true);
-      }
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g. mobile apps, server-to-server, curl, health checks) without origin header
+    if (!origin) {
+      return callback(null, true);
+    }
 
-      const normalizedOrigin = origin.replace(/\/+$/, '');
-      if (allowedOrigins.includes(normalizedOrigin)) {
-        return callback(null, true);
-      }
+    const normalizedOrigin = origin.replace(/\/+$/, '');
+    if (allowedOrigins.includes(normalizedOrigin) || vercelDomainRegex.test(normalizedOrigin)) {
+      return callback(null, true);
+    }
 
-      if (!isProduction && localNetworkOriginRegex.test(normalizedOrigin)) {
-        return callback(null, true);
-      }
+    if (!isProduction && localNetworkOriginRegex.test(normalizedOrigin)) {
+      return callback(null, true);
+    }
 
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-  })
-);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Security: Request body size limits (reduced from 10mb to 2mb to mitigate body-overflow DoS)
 app.use(express.json({ limit: '2mb' }));

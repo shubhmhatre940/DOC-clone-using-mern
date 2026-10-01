@@ -267,23 +267,26 @@ const EditorPage = () => {
 
     // Resolve WebSocket server URL (support VITE_WS_URL, VITE_API_URL, or local dev fallback)
     let serverUrl = import.meta.env.VITE_WS_URL;
-    if (!serverUrl) {
-      if (import.meta.env.VITE_API_URL) {
-        try {
-          const apiUrl = new URL(import.meta.env.VITE_API_URL);
-          const wsProto = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-          serverUrl = `${wsProto}//${apiUrl.host}/yjs`;
-        } catch {
-          serverUrl = import.meta.env.DEV
-            ? `ws://${window.location.hostname || 'localhost'}:5000/yjs`
-            : 'wss://doc-clone-using-mern.onrender.com/yjs';
-        }
-      } else if (import.meta.env.DEV) {
-        const wsHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-        serverUrl = `ws://${wsHost || 'localhost'}:5000/yjs`;
-      } else {
-        serverUrl = 'wss://doc-clone-using-mern.onrender.com/yjs';
+    if (serverUrl) {
+      serverUrl = serverUrl.trim().replace(/\/+$/, '');
+      if (!serverUrl.endsWith('/yjs')) {
+        serverUrl = `${serverUrl}/yjs`;
       }
+    } else if (import.meta.env.VITE_API_URL) {
+      try {
+        const apiUrl = new URL(import.meta.env.VITE_API_URL);
+        const wsProto = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+        serverUrl = `${wsProto}//${apiUrl.host}/yjs`;
+      } catch {
+        serverUrl = import.meta.env.DEV
+          ? `ws://${window.location.hostname || 'localhost'}:5000/yjs`
+          : 'wss://doc-clone-using-mern.onrender.com/yjs';
+      }
+    } else if (import.meta.env.DEV) {
+      const wsHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+      serverUrl = `ws://${wsHost || 'localhost'}:5000/yjs`;
+    } else {
+      serverUrl = 'wss://doc-clone-using-mern.onrender.com/yjs';
     }
 
     console.log(`[Yjs] Connecting provider to ${serverUrl} for doc ${id}`);
