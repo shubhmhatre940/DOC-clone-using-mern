@@ -23,7 +23,7 @@ export const authLimiter = rateLimit({
 });
 
 /**
- * Rate limiter for heavy export generation (PDF, DOCX)
+ * Rate limiter for heavy export generation (DOCX, TXT, HTML)
  * 15 requests per 15 minutes
  */
 export const exportLimiter = rateLimit({
@@ -32,6 +32,18 @@ export const exportLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: rateLimitHandler('Too many document exports requested. Please wait a few minutes before trying again.')
+});
+
+/**
+ * Stricter rate limiter for PDF export only (runs Puppeteer — expensive, easy DoS target)
+ * 5 PDF exports per 15 minutes per IP
+ */
+export const pdfExportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: rateLimitHandler('PDF export limit reached. Generating PDFs is resource-intensive — please wait 15 minutes before requesting more.')
 });
 
 /**
@@ -56,4 +68,16 @@ export const createDocLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: rateLimitHandler('Document creation limit reached. Please slow down and try again shortly.')
+});
+
+/**
+ * Rate limiter for grammar check API calls
+ * 60 requests per minute (it hits an external service)
+ */
+export const grammarLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: rateLimitHandler('Grammar check rate limit reached. Please wait a moment before trying again.')
 });

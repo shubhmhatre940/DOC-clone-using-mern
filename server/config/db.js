@@ -5,7 +5,11 @@ import mongoose from 'mongoose';
  */
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/google_docs_clone');
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+    if (!mongoUri && process.env.NODE_ENV === 'production') {
+      throw new Error('[FATAL SECURITY ERROR]: MONGODB_URI (or MONGO_URI) environment variable is required in production.');
+    }
+    const conn = await mongoose.connect(mongoUri || 'mongodb://localhost:27017/google_docs_clone');
     console.log(`[MongoDB Connected]: ${conn.connection.host}`);
   } catch (error) {
     console.error(`[MongoDB Connection Error]: ${error.message}`);

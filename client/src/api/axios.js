@@ -1,16 +1,33 @@
 import axios from 'axios';
 
-// Resolve API base URL dynamically: adapts to local IP if accessed from another device on the network
+// Resolve API base URL dynamically:
+// - Supports VITE_API_URL env variable (e.g. on Vercel)
+// - In local dev without env var, defaults to http://localhost:5000/api (or local network IP)
+// - In production without env var, defaults to https://doc-clone-using-mern.onrender.com/api
 const getBaseUrl = () => {
-  const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl) {
-    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      return envUrl.replace('localhost', window.location.hostname).replace('127.0.0.1', window.location.hostname);
+  let url = import.meta.env.VITE_API_URL;
+
+  if (!url) {
+    if (import.meta.env.DEV) {
+      const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+      return `http://${host}:5000/api`;
     }
-    return envUrl;
+    url = 'https://doc-clone-using-mern.onrender.com/api';
   }
-  const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  return `http://${host}:5000/api`;
+
+  // Handle LAN testing if url points to localhost and is accessed via local IP
+  if (typeof window !== 'undefined' && (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1'))) {
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      url = url.replace('localhost', window.location.hostname).replace('127.0.0.1', window.location.hostname);
+    }
+  }
+
+  // Ensure the URL has no trailing slash and ends with /api
+  url = url.trim().replace(/\/+$/, '');
+  if (!url.endsWith('/api')) {
+    url = `${url}/api`;
+  }
+  return url;
 };
 
 const API = axios.create({

@@ -7,6 +7,7 @@ import * as decoding from 'lib0/decoding.js';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import Document from '../models/Document.js';
+import { getJwtSecret } from '../config/jwt.js';
 
 const messageSync = 0;
 const messageAwareness = 1;
@@ -188,6 +189,70 @@ function handleMessage(conn, docData, message) {
 }
 
 /**
+ * Validates WebSocket connection authentication and document room permissions.
+ * @param {string} docId - The MongoDB Document ID
+ * @param {string|null} token - The JWT bearer token (from query param or authorization header)
+ * @returns {Promise<{ allowed: boolean, reason?: string, user?: any, role?: string }>}
+ */
+async function verifyCollabAccess(docId, token) {
+  if (!mongoose.isValidObjectId(docId)) {
+    return { allowed: false, reason: 'Invalid document ID' };
+  }
+
+  const document = await Document.findById(docId).lean();
+  if (!document) {
+    return { allowed: false, reason: 'Document not found' };
+  }
+
+  const isPublicLink = document.visibility === 'anyone-with-link';
+
+  // If token is missing, allow guest only if document has public link sharing
+  if (!token) {
+    if (isPublicLink) {
+      return { allowed: true, role: document.linkRole || 'viewer', user: null };
+    }
+    return { allowed: false, reason: 'Authentication required' };
+  }
+
+  // Verify JWT
+  let decoded;
+  try {
+    decoded = jwt.verify(token, getJwtSecret());
+  } catch (jwtErr) {
+    if (isPublicLink) {
+      return { allowed: true, role: document.linkRole || 'viewer', user: null };
+    }
+    return { allowed: false, reason: 'Invalid or expired token' };
+  }
+
+  const userId = decoded.id ? decoded.id.toString() : null;
+  if (!userId) {
+    return { allowed: false, reason: 'Malformed token payload' };
+  }
+
+  const ownerId = document.owner ? document.owner.toString() : null;
+  if (ownerId === userId) {
+    return { allowed: true, role: 'owner', user: decoded };
+  }
+
+  if (Array.isArray(document.collaborators)) {
+    const collab = document.collaborators.find((c) => {
+      const cId = c.userId?._id ? c.userId._id.toString() : c.userId?.toString();
+      return cId === userId;
+    });
+    if (collab) {
+      return { allowed: true, role: collab.role, user: decoded };
+    }
+  }
+
+  if (isPublicLink) {
+    return { allowed: true, role: document.linkRole || 'viewer', user: decoded };
+  }
+
+  return { allowed: false, reason: 'Forbidden: You do not have permission to join this document room' };
+}
+
+/**
  * Set up the WebSocket collaboration server on an existing HTTP server instance
  */
 export function setupCollabServer(httpServer) {
@@ -213,7 +278,7 @@ export function setupCollabServer(httpServer) {
     }
   });
 
-  wss.on('connection', (ws, request) => {
+  wss.on('connection', async (ws, request) => {
     try {
       const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
       const pathParts = url.pathname.split('/').filter(Boolean); // ['yjs', '<docId>']
@@ -222,13 +287,30 @@ export function setupCollabServer(httpServer) {
         url.searchParams.get('room') ||
         (pathParts.length > 1 ? pathParts[1] : null);
 
-      console.log(`[CollabServer] Client connected for docId: ${docId}`);
-
       if (!docId) {
         console.warn('[CollabServer] Rejected: Missing docId or room parameter');
         ws.close(1008, 'Missing docId or room parameter');
         return;
       }
+
+      // Extract JWT from query parameters or Authorization header
+      const token =
+        url.searchParams.get('token') ||
+        (request.headers.authorization && request.headers.authorization.startsWith('Bearer ')
+          ? request.headers.authorization.split(' ')[1]
+          : null);
+
+      // Verify user authentication & document room access permissions
+      const authResult = await verifyCollabAccess(docId, token);
+      if (!authResult.allowed) {
+        console.warn(`[CollabServer] Rejected unauthorized access for docId ${docId}: ${authResult.reason}`);
+        ws.close(1008, authResult.reason || 'Access denied');
+        return;
+      }
+
+      console.log(`[CollabServer] Authorized client connected for docId: ${docId} (role: ${authResult.role})`);
+      ws.userRole = authResult.role;
+      ws.user = authResult.user;
 
       // Buffer incoming messages until docData is loaded to prevent dropping initial syncStep1
       const messageQueue = [];

@@ -253,7 +253,7 @@ export const updateDocument = async (req, res) => {
  */
 export const deleteDocument = async (req, res) => {
   try {
-    const document = await Document.findById(req.params.id);
+    const document = req.doc || (await Document.findById(req.params.id));
 
     if (!document) {
       return res.status(404).json({ message: 'Document not found' });
@@ -292,7 +292,7 @@ export const deleteDocument = async (req, res) => {
  */
 export const restoreDocument = async (req, res) => {
   try {
-    const document = await Document.findById(req.params.id);
+    const document = req.doc || (await Document.findById(req.params.id));
     if (!document) {
       return res.status(404).json({ success: false, message: 'Document not found' });
     }
@@ -320,7 +320,7 @@ export const restoreDocument = async (req, res) => {
  */
 export const permanentDeleteDocument = async (req, res) => {
   try {
-    const document = await Document.findById(req.params.id);
+    const document = req.doc || (await Document.findById(req.params.id));
     if (!document) {
       return res.status(404).json({ success: false, message: 'Document not found' });
     }
@@ -346,7 +346,7 @@ export const permanentDeleteDocument = async (req, res) => {
  */
 export const toggleStarDocument = async (req, res) => {
   try {
-    const document = await Document.findById(req.params.id);
+    const document = req.doc || (await Document.findById(req.params.id));
     if (!document) {
       return res.status(404).json({ success: false, message: 'Document not found' });
     }
@@ -369,7 +369,7 @@ export const toggleStarDocument = async (req, res) => {
 export const moveDocumentToFolder = async (req, res) => {
   try {
     const { folderId } = req.body;
-    const document = await Document.findById(req.params.id);
+    const document = req.doc || (await Document.findById(req.params.id));
     if (!document) {
       return res.status(404).json({ success: false, message: 'Document not found' });
     }

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { sanitizeContent } from '../utils/sanitize.js';
 
 const documentSchema = new mongoose.Schema(
   {
@@ -106,6 +107,14 @@ const documentSchema = new mongoose.Schema(
     timestamps: true
   }
 );
+
+// Pre-save hook: Enforce HTML sanitization at schema level for all document writes
+documentSchema.pre('save', function (next) {
+  if (this.isModified('content') && typeof this.content === 'string') {
+    this.content = sanitizeContent(this.content);
+  }
+  next();
+});
 
 const Document = mongoose.model('Document', documentSchema);
 export default Document;

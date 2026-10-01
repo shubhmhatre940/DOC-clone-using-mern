@@ -23,7 +23,7 @@ import { getActivityLog } from '../controllers/activityController.js';
 import { exportDocument } from '../controllers/exportController.js';
 import { protect } from '../middleware/auth.js';
 import { checkDocAccess } from '../middleware/permissions.js';
-import { uploadLimiter, createDocLimiter, exportLimiter } from '../middleware/rateLimiter.js';
+import { uploadLimiter, createDocLimiter, exportLimiter, pdfExportLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -66,17 +66,20 @@ router.get('/search', searchDocuments);
 router.route('/:id')
   .get(checkDocAccess('viewer'), getDocumentById)
   .put(checkDocAccess('editor'), updateDocument)
-  .delete(deleteDocument);
+  .delete(checkDocAccess('owner'), deleteDocument);
 
 // Starring, Folder moving, and Trash operations
-router.patch('/:id/star', toggleStarDocument);
-router.patch('/:id/move', moveDocumentToFolder);
-router.patch('/:id/restore', restoreDocument);
-router.delete('/:id/permanent', permanentDeleteDocument);
+router.patch('/:id/star', checkDocAccess('viewer'), toggleStarDocument);
+router.patch('/:id/move', checkDocAccess('owner'), moveDocumentToFolder);
+router.patch('/:id/restore', checkDocAccess('owner'), restoreDocument);
+router.delete('/:id/permanent', checkDocAccess('owner'), permanentDeleteDocument);
 
-// Document Export route (requires at least viewer access)
-router.route('/:id/export')
-  .get(exportLimiter, checkDocAccess('viewer'), exportDocument);
+// Document Export route (PDF gets a stricter limiter; other formats use exportLimiter)
+router.get('/:id/export', (req, res, next) => {
+  const format = (req.query.format || 'txt').toLowerCase();
+  if (format === 'pdf') return pdfExportLimiter(req, res, next);
+  return exportLimiter(req, res, next);
+}, checkDocAccess('viewer'), exportDocument);
 
 // Document Activity Log / Audit Trail (requires at least viewer access)
 router.get('/:id/activity', checkDocAccess('viewer'), getActivityLog);

@@ -33,8 +33,13 @@ export function sanitizeContent(content) {
       'width', 'height', 'data-*', 'colspan', 'rowspan', 'border', 'align',
       'controls', 'preload'
     ],
-    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
-    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur', 'onchange', 'onsubmit', 'onkeydown'],
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'link', 'style'],
+    FORBID_ATTR: [
+      'onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout',
+      'onfocus', 'onblur', 'onchange', 'onsubmit', 'onkeydown',
+      'onkeypress', 'onkeyup', 'formaction'
+    ],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
     ALLOW_DATA_ATTR: true
   });
 }

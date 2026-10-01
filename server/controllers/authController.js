@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { getJwtSecret } from '../config/jwt.js';
 
 /**
  * Generate signed JWT token
@@ -9,7 +10,7 @@ import User from '../models/User.js';
 const generateToken = (id) => {
   return jwt.sign(
     { id },
-    process.env.JWT_SECRET || 'super_secret_jwt_key_for_google_docs_clone_12345',
+    getJwtSecret(),
     { expiresIn: '7d' }
   );
 };
@@ -73,8 +74,8 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: 'Please provide email and password' });
     }
 
-    // Find user by email
-    const user = await User.findOne({ email: email.toLowerCase() });
+    // Find user by email (explicitly selecting password since it is hidden by default in schema)
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
 
     if (user && (await user.matchPassword(password))) {
       return res.json({
