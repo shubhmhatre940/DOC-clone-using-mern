@@ -45,22 +45,26 @@ app.use(
   })
 );
 
-// Security: Restricted CORS configuration
+// Security: CORS configuration for deployed frontend (Vercel) & local development
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Parse CLIENT_URL (supports comma-separated list of origins)
-const envClientUrls = process.env.CLIENT_URL
-  ? process.env.CLIENT_URL.split(',').map((url) => url.trim().replace(/\/+$/, ''))
-  : [];
-
-const allowedOrigins = [
-  ...envClientUrls,
+// Default allowed origins (Vercel production and local Vite/dev servers)
+const defaultAllowedOrigins = [
   'https://doc-clone-using-mern.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:3000'
-].filter(Boolean);
+];
+
+// Parse CLIENT_URL (supports optional comma-separated list of custom origins from environment)
+const envClientUrls = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(',').map((url) => url.trim().replace(/\/+$/, ''))
+  : [];
+
+const allowedOrigins = Array.from(
+  new Set([...envClientUrls, ...defaultAllowedOrigins])
+).filter(Boolean);
 
 // Matches Vercel production and preview deployment URLs for this app
 const vercelDomainRegex = /^https:\/\/doc-clone-using-mern(-[a-z0-9-]+)?\.vercel\.app$/i;
