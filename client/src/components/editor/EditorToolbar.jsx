@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import {
   Undo2,
   Redo2,
@@ -66,18 +67,12 @@ const FONT_SIZES = [
 const FONT_SIZE_MIN = 6;
 const FONT_SIZE_MAX = 400;
 
-// ─────────────────────────────────────────────
-// Heading style definitions — these MUST mirror
-// the actual CSS applied to h1/h2/h3 in the
-// editor body (TipTap StarterKit defaults use
-// browser UA sheet values, tweaked below to
-// match typical Google-Docs-style proportions).
-// ─────────────────────────────────────────────
+// Heading styles: label + preview style (mirrors TipTap StarterKit heading proportions)
 const HEADING_STYLES = [
   {
     value: 'paragraph',
     label: 'Normal text',
-    style: { fontSize: '13px', fontWeight: '400', lineHeight: '1.4', color: '#202124' }
+    style: { fontSize: '13px', fontWeight: '400', lineHeight: '1.5', color: '#202124' }
   },
   {
     value: 'h1',
@@ -100,7 +95,7 @@ const HEADING_STYLES = [
 // Helpers
 // ─────────────────────────────────────────────
 
-/** Parse a CSS font-size string (e.g. "14px") into a numeric value. */
+/** Parse a CSS font-size string (e.g. "14px", "10.5px") into a numeric value. */
 function parsePxSize(sizeStr) {
   if (!sizeStr) return null;
   const match = String(sizeStr).match(/^(\d+(?:\.\d+)?)(px|pt|em|rem)?$/i);
@@ -108,15 +103,11 @@ function parsePxSize(sizeStr) {
   return Math.round(parseFloat(match[1]));
 }
 
-/**
- * Walk all inline text nodes in the selection and collect the unique set of
- * font-size values (as integer px numbers).
- */
+/** Walk all text nodes in selection and return the Set of explicit px sizes found. */
 function getSelectionFontSizes(editor) {
   const { state } = editor;
   const { from, to, empty } = state.selection;
 
-  // Cursor (no range) → read mark at cursor
   if (empty) {
     const attrs = editor.getAttributes('textStyle');
     const px = parsePxSize(attrs.fontSize);
@@ -127,35 +118,76 @@ function getSelectionFontSizes(editor) {
   const sizes = new Set();
   state.doc.nodesBetween(from, to, (node) => {
     if (!node.isText) return;
-    const textStyleMark = node.marks.find((m) => m.type.name === 'textStyle');
-    const px = parsePxSize(textStyleMark?.attrs?.fontSize);
-    if (px !== null) {
-      sizes.add(px);
-    } else {
-      sizes.add(null); // sentinel for "no explicit size"
-    }
+    const mark = node.marks.find((m) => m.type.name === 'textStyle');
+    const px = parsePxSize(mark?.attrs?.fontSize);
+    sizes.add(px !== null ? px : null);
   });
   return sizes;
 }
 
-// ─────────────────────────────────────────────
-// Sub-component: Heading Dropdown
-// A fully custom dropdown so each option renders
-// in its own visual heading style.
-// ─────────────────────────────────────────────
-const HeadingDropdown = ({ currentValue, onChange }) => {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+/**
+ * Compute the viewport-relative position of a DOM element's bottom-left corner.
+ * Used to anchor portal dropdowns exactly below their trigger.
+ */
+function getBottomLeft(el) {
+  if (!el) return { top: 0, left: 0 };
+  const r = el.getBoundingClientRect();
+  return { top: r.bottom + 4, left: r.left };
+}
 
-  const current = HEADING_STYLES.find((h) => h.value === currentValue) || HEADING_STYLES[0];
+// ─────────────────────────────────────────────
+// Portal Dropdown wrapper — renders children into
+// document.body so overflow:auto on the toolbar
+// never clips the panel.
+// ─────────────────────────────────────────────
+const PortalDropdown = ({ anchorRef, open, onClose, children }) => {
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const panelRef = useRef(null);
 
+  // Recompute position whenever opened
   useEffect(() => {
+    if (open && anchorRef.current) {
+      setPos(getBottomLeft(anchorRef.current));
+    }
+  }, [open, anchorRef]);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (
+        panelRef.current && !panelRef.current.contains(e.target) &&
+        anchorRef.current && !anchorRef.current.contains(e.target)
+      ) {
+        onClose();
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [open, onClose, anchorRef]);
+
+  if (!open) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      ref={panelRef}
+      style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+    >
+      {children}
+    </div>,
+    document.body
+  );
+};
+
+// ─────────────────────────────────────────────
+// HeadingDropdown — custom trigger + portal panel
+// Each option is rendered in its actual heading style
+// ─────────────────────────────────────────────
+const HeadingDropdown = ({ currentValue, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef(null);
+
+  const current = HEADING_STYLES.find((h) => h.value === currentValue) || HEADING_STYLES[0];
 
   const handleSelect = (value) => {
     setOpen(false);
@@ -163,25 +195,39 @@ const HeadingDropdown = ({ currentValue, onChange }) => {
   };
 
   return (
-    <div className="relative shrink-0" ref={ref}>
-      {/* Trigger button */}
+    <div className="relative shrink-0">
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="h-7 flex items-center gap-1 rounded border border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-700 px-2 text-xs font-medium text-gray-700 dark:text-gray-300 focus:outline-none cursor-pointer transition min-w-[110px]"
+        onMouseDown={(e) => {
+          // Prevent blur on editor before we toggle
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
+        className="h-7 flex items-center gap-1 rounded border border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-700 px-2 text-xs font-medium text-gray-700 dark:text-gray-300 focus:outline-none cursor-pointer transition"
+        style={{ minWidth: '110px' }}
         title="Paragraph styles"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span className="flex-1 text-left truncate">{current.label}</span>
-        <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
+        <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {current.label}
+        </span>
+        <ChevronDown style={{ width: 12, height: 12, opacity: 0.6, flexShrink: 0 }} />
       </button>
 
-      {/* Dropdown panel */}
-      {open && (
+      <PortalDropdown anchorRef={triggerRef} open={open} onClose={() => setOpen(false)}>
         <div
-          className="absolute left-0 top-8 z-40 min-w-[180px] bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xl border border-gray-200 dark:border-neutral-700 py-1 overflow-hidden"
           role="listbox"
+          style={{
+            minWidth: 190,
+            background: '#fff',
+            borderRadius: 12,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+            border: '1px solid #e0e0e0',
+            padding: '4px 0',
+            overflow: 'hidden'
+          }}
         >
           {HEADING_STYLES.map((h) => (
             <button
@@ -189,29 +235,39 @@ const HeadingDropdown = ({ currentValue, onChange }) => {
               type="button"
               role="option"
               aria-selected={currentValue === h.value}
-              onClick={() => handleSelect(h.value)}
-              className={`w-full text-left px-4 py-2 transition cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/40 ${
-                currentValue === h.value
-                  ? 'bg-blue-50 dark:bg-blue-950/40'
-                  : ''
-              }`}
-              style={h.style}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(h.value);
+              }}
+              style={{
+                ...h.style,
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '6px 16px',
+                cursor: 'pointer',
+                background: currentValue === h.value ? '#e8f0fe' : 'transparent',
+                border: 'none',
+                outline: 'none'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f3f4'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = currentValue === h.value ? '#e8f0fe' : 'transparent'; }}
             >
               {h.label}
             </button>
           ))}
         </div>
-      )}
+      </PortalDropdown>
     </div>
   );
 };
 
 // ─────────────────────────────────────────────
-// Sub-component: Font Size Combo-Box
-// Three interaction modes:
-//   1. Editable text input (type custom value, press Enter/blur to apply)
-//   2. Preset dropdown panel (click ChevronDown to see standard sizes)
-//   3. +/- buttons (increment/decrement by 1pt)
+// FontSizeComboBox
+// Three interaction modes coexist:
+//   1. Editable text input (type + Enter/blur)
+//   2. Preset dropdown via ChevronDown button (portal)
+//   3. +/- buttons
 // ─────────────────────────────────────────────
 const FontSizeComboBox = ({
   fontSizeInput,
@@ -222,30 +278,20 @@ const FontSizeComboBox = ({
   onSelectPreset
 }) => {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const chevronRef = useRef(null);
   const inputRef = useRef(null);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
 
   const handlePresetClick = (size) => {
     setOpen(false);
     onSelectPreset(size);
-    // Re-focus the input after selection
-    setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   return (
-    <div className="relative flex items-center shrink-0" ref={ref}>
+    <div className="flex items-center shrink-0" style={{ position: 'relative' }}>
       {/* Decrement */}
       <button
         type="button"
-        onClick={() => onIncrement(-1)}
+        onMouseDown={(e) => { e.preventDefault(); onIncrement(-1); }}
         className="h-7 w-5 flex items-center justify-center rounded-l border border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300 transition cursor-pointer"
         title="Decrease font size"
         aria-label="Decrease font size"
@@ -268,10 +314,15 @@ const FontSizeComboBox = ({
         aria-label="Font size"
       />
 
-      {/* Chevron — opens preset size list */}
+      {/* Chevron — opens preset list via portal */}
       <button
+        ref={chevronRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onMouseDown={(e) => {
+          // Prevent input blur before toggling open state
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
         className="h-7 w-4 flex items-center justify-center border-t border-b border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-500 dark:text-gray-400 transition cursor-pointer"
         title="Font size presets"
         aria-label="Show font size presets"
@@ -284,7 +335,7 @@ const FontSizeComboBox = ({
       {/* Increment */}
       <button
         type="button"
-        onClick={() => onIncrement(1)}
+        onMouseDown={(e) => { e.preventDefault(); onIncrement(1); }}
         className="h-7 w-5 flex items-center justify-center rounded-r border border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300 transition cursor-pointer"
         title="Increase font size"
         aria-label="Increase font size"
@@ -292,31 +343,56 @@ const FontSizeComboBox = ({
         <Plus className="w-3 h-3" />
       </button>
 
-      {/* Preset size dropdown panel */}
-      {open && (
+      {/* Portal-rendered preset list */}
+      <PortalDropdown anchorRef={chevronRef} open={open} onClose={() => setOpen(false)}>
         <div
-          className="absolute left-4 top-8 z-40 w-20 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-xl border border-gray-200 dark:border-neutral-700 py-1 overflow-y-auto max-h-56"
           role="listbox"
           aria-label="Font size presets"
+          style={{
+            width: 80,
+            maxHeight: 240,
+            overflowY: 'auto',
+            background: '#fff',
+            borderRadius: 10,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+            border: '1px solid #e0e0e0',
+            padding: '4px 0'
+          }}
         >
-          {FONT_SIZES.map((size) => (
-            <button
-              key={size}
-              type="button"
-              role="option"
-              aria-selected={fontSizeInput === size}
-              onClick={() => handlePresetClick(size)}
-              className={`w-full text-left px-3 py-1 text-xs transition cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/40 ${
-                fontSizeInput === size
-                  ? 'bg-blue-50 dark:bg-blue-950/40 font-semibold text-blue-700'
-                  : 'text-gray-700 dark:text-gray-300'
-              }`}
-            >
-              {size}
-            </button>
-          ))}
+          {FONT_SIZES.map((size) => {
+            const isActive = !isMixedSize && fontSizeInput === size;
+            return (
+              <button
+                key={size}
+                type="button"
+                role="option"
+                aria-selected={isActive}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handlePresetClick(size);
+                }}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '5px 12px',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  background: isActive ? '#e8f0fe' : 'transparent',
+                  color: isActive ? '#1a73e8' : '#202124',
+                  fontWeight: isActive ? '600' : '400',
+                  border: 'none',
+                  outline: 'none'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f3f4'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = isActive ? '#e8f0fe' : 'transparent'; }}
+              >
+                {size}
+              </button>
+            );
+          })}
         </div>
-      )}
+      </PortalDropdown>
     </div>
   );
 };
@@ -334,7 +410,6 @@ const EditorToolbar = ({ editor, editable = true }) => {
   const [fontSizeInput, setFontSizeInput] = useState('11');
   const [isMixedSize, setIsMixedSize] = useState(false);
 
-  // Sync font size display whenever editor selection or content changes
   const syncFontSize = useCallback(() => {
     if (!editor) return;
     const sizes = getSelectionFontSizes(editor);
@@ -379,7 +454,6 @@ const EditorToolbar = ({ editor, editable = true }) => {
 
   if (!editor) return null;
 
-  // Read-only view banner
   if (!editable) {
     return (
       <div className="sticky top-0 z-20 flex items-center justify-between bg-[#edf2fa] px-4 py-2 border-b border-gray-300 select-none">
@@ -396,7 +470,7 @@ const EditorToolbar = ({ editor, editable = true }) => {
     );
   }
 
-  // ── Heading ──────────────────────────────────
+  // ── Heading ───────────────────────────────
   const getCurrentHeadingValue = () => {
     if (editor.isActive('heading', { level: 1 })) return 'h1';
     if (editor.isActive('heading', { level: 2 })) return 'h2';
@@ -416,7 +490,7 @@ const EditorToolbar = ({ editor, editable = true }) => {
     }
   };
 
-  // ── Font family ───────────────────────────────
+  // ── Font family ───────────────────────────
   const handleFontFamilyChange = (e) => {
     const font = e.target.value;
     if (!font || font === 'default') {
@@ -429,7 +503,7 @@ const EditorToolbar = ({ editor, editable = true }) => {
   const getCurrentFontFamily = () =>
     editor.getAttributes('textStyle').fontFamily || 'Arial';
 
-  // ── Font size helpers ─────────────────────────
+  // ── Font size helpers ─────────────────────
   const applyFontSize = (pxNum) => {
     const clamped = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, Math.round(pxNum)));
     editor.chain().focus().setFontSize(`${clamped}px`).run();
@@ -451,11 +525,9 @@ const EditorToolbar = ({ editor, editable = true }) => {
     const ranges = [];
     state.doc.nodesBetween(from, to, (node, pos) => {
       if (!node.isText) return;
-      const textStyleMark = node.marks.find((m) => m.type.name === 'textStyle');
-      const current = parsePxSize(textStyleMark?.attrs?.fontSize) ?? 11;
-      const nodeFrom = Math.max(from, pos);
-      const nodeTo = Math.min(to, pos + node.nodeSize);
-      ranges.push({ from: nodeFrom, to: nodeTo, current });
+      const mark = node.marks.find((m) => m.type.name === 'textStyle');
+      const current = parsePxSize(mark?.attrs?.fontSize) ?? 11;
+      ranges.push({ from: Math.max(from, pos), to: Math.min(to, pos + node.nodeSize), current });
     });
 
     if (ranges.length === 0) {
@@ -479,9 +551,7 @@ const EditorToolbar = ({ editor, editable = true }) => {
     editor.view.dispatch(tr);
 
     const newSizes = new Set(
-      ranges.map(({ current }) =>
-        Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, current + delta))
-      )
+      ranges.map(({ current }) => Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, current + delta)))
     );
     if (newSizes.size === 1) {
       setFontSizeInput(String([...newSizes][0]));
@@ -499,7 +569,6 @@ const EditorToolbar = ({ editor, editable = true }) => {
 
   const handleFontSizeInputCommit = (e) => {
     if (e.type === 'keydown' && e.key !== 'Enter') return;
-    // Support decimals like "10.5"
     const num = parseFloat(fontSizeInput);
     if (!isNaN(num) && num > 0) {
       applyFontSize(num);
@@ -513,7 +582,7 @@ const EditorToolbar = ({ editor, editable = true }) => {
     if (!isNaN(num)) applyFontSize(num);
   };
 
-  // ── Color / highlight ─────────────────────────
+  // ── Colors ────────────────────────────────
   const handleSetColor = (color) => {
     if (color) editor.chain().focus().setColor(color).run();
     else editor.chain().focus().unsetColor().run();
@@ -547,7 +616,6 @@ const EditorToolbar = ({ editor, editable = true }) => {
       >
         <Undo2 className="w-4 h-4" />
       </button>
-
       <button
         type="button"
         onClick={() => editor.chain().focus().redo().run()}
@@ -558,19 +626,19 @@ const EditorToolbar = ({ editor, editable = true }) => {
         <Redo2 className="w-4 h-4" />
       </button>
 
-      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-600 mx-1"></div>
+      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-600 mx-1 shrink-0"></div>
 
-      {/* Bug 2 — Heading Dropdown with per-level visual previews */}
+      {/* Heading Dropdown — Bug 2 fix: per-level visual previews */}
       <HeadingDropdown
         currentValue={getCurrentHeadingValue()}
         onChange={handleHeadingChange}
       />
 
-      {/* Font Family Selector */}
+      {/* Font Family */}
       <select
         value={getCurrentFontFamily()}
         onChange={handleFontFamilyChange}
-        className="h-7 max-w-[120px] rounded border border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-700 px-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 focus:outline-none cursor-pointer truncate"
+        className="h-7 max-w-[120px] rounded border border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-700 px-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 focus:outline-none cursor-pointer truncate shrink-0"
         title="Font"
       >
         {FONT_FAMILIES.map((font) => (
@@ -580,7 +648,7 @@ const EditorToolbar = ({ editor, editable = true }) => {
         ))}
       </select>
 
-      {/* Bug 1 — Font Size Combo-Box: preset dropdown + editable input + +/- */}
+      {/* Font Size Combo-Box — Bug 1 fix: preset dropdown + input + +/- */}
       <FontSizeComboBox
         fontSizeInput={fontSizeInput}
         isMixedSize={isMixedSize}
@@ -590,99 +658,55 @@ const EditorToolbar = ({ editor, editable = true }) => {
         onSelectPreset={handleSelectPreset}
       />
 
-      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-600 mx-1"></div>
+      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-600 mx-1 shrink-0"></div>
 
       {/* Bold */}
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        className={btnClass(editor.isActive('bold'))}
-        title="Bold (Ctrl+B)"
-      >
+      <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btnClass(editor.isActive('bold'))} title="Bold (Ctrl+B)">
         <Bold className="w-4 h-4" />
       </button>
 
       {/* Italic */}
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-        className={btnClass(editor.isActive('italic'))}
-        title="Italic (Ctrl+I)"
-      >
+      <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btnClass(editor.isActive('italic'))} title="Italic (Ctrl+I)">
         <Italic className="w-4 h-4" />
       </button>
 
       {/* Underline */}
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
-        className={btnClass(editor.isActive('underline'))}
-        title="Underline (Ctrl+U)"
-      >
+      <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={btnClass(editor.isActive('underline'))} title="Underline (Ctrl+U)">
         <UnderlineIcon className="w-4 h-4" />
       </button>
 
       {/* Strikethrough */}
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().toggleStrike().run()}
-        className={btnClass(editor.isActive('strike'))}
-        title="Strikethrough (Alt+Shift+5)"
-      >
+      <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={btnClass(editor.isActive('strike'))} title="Strikethrough (Alt+Shift+5)">
         <Strikethrough className="w-4 h-4" />
       </button>
 
       {/* Text Color Picker */}
-      <div className="relative" ref={colorPickerRef}>
-        <button
-          type="button"
-          onClick={() => setShowColorPicker(!showColorPicker)}
-          className={btnClass(showColorPicker)}
-          title="Text color"
-        >
+      <div className="relative shrink-0" ref={colorPickerRef}>
+        <button type="button" onClick={() => setShowColorPicker(!showColorPicker)} className={btnClass(showColorPicker)} title="Text color">
           <Baseline className="w-4 h-4" />
         </button>
         {showColorPicker && (
           <div className="absolute left-0 top-8 z-30 p-2 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-lg border border-gray-200 dark:border-neutral-700 grid grid-cols-5 gap-1.5 w-40">
             {TEXT_COLORS.map((tc) => (
-              <button
-                key={tc.color}
-                type="button"
-                onClick={() => handleSetColor(tc.color)}
+              <button key={tc.color} type="button" onClick={() => handleSetColor(tc.color)}
                 className="w-6 h-6 rounded-full border border-gray-300 transition-transform hover:scale-115 focus:outline-none"
-                style={{ backgroundColor: tc.color }}
-                title={tc.name}
-              />
+                style={{ backgroundColor: tc.color }} title={tc.name} />
             ))}
           </div>
         )}
       </div>
 
       {/* Highlight Color Picker */}
-      <div className="relative" ref={highlightPickerRef}>
-        <button
-          type="button"
-          onClick={() => setShowHighlightPicker(!showHighlightPicker)}
-          className={btnClass(editor.isActive('highlight') || showHighlightPicker)}
-          title="Highlight color"
-        >
+      <div className="relative shrink-0" ref={highlightPickerRef}>
+        <button type="button" onClick={() => setShowHighlightPicker(!showHighlightPicker)} className={btnClass(editor.isActive('highlight') || showHighlightPicker)} title="Highlight color">
           <Highlighter className="w-4 h-4" />
         </button>
         {showHighlightPicker && (
           <div className="absolute left-0 top-8 z-30 p-2 bg-white dark:bg-[#2c2c2e] rounded-xl shadow-lg border border-gray-200 dark:border-neutral-700 grid grid-cols-4 gap-1.5 w-36">
             {HIGHLIGHT_COLORS.map((hc) => (
-              <button
-                key={hc.name}
-                type="button"
-                onClick={() => handleSetHighlight(hc.color)}
-                className={`w-6 h-6 rounded border transition-transform hover:scale-115 focus:outline-none flex items-center justify-center text-[10px] ${
-                  !hc.color
-                    ? 'border-gray-400 bg-transparent text-gray-500'
-                    : 'border-gray-200'
-                }`}
-                style={{ backgroundColor: hc.color || 'transparent' }}
-                title={hc.name}
-              >
+              <button key={hc.name} type="button" onClick={() => handleSetHighlight(hc.color)}
+                className={`w-6 h-6 rounded border transition-transform hover:scale-115 focus:outline-none flex items-center justify-center text-[10px] ${!hc.color ? 'border-gray-400 bg-transparent text-gray-500' : 'border-gray-200'}`}
+                style={{ backgroundColor: hc.color || 'transparent' }} title={hc.name}>
                 {!hc.color && '✕'}
               </button>
             ))}
@@ -690,75 +714,36 @@ const EditorToolbar = ({ editor, editable = true }) => {
         )}
       </div>
 
-      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-600 mx-1"></div>
+      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-600 mx-1 shrink-0"></div>
 
       {/* Alignment */}
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().setTextAlign('left').run()}
-        className={btnClass(editor.isActive({ textAlign: 'left' }))}
-        title="Left align (Ctrl+Shift+L)"
-      >
+      <button type="button" onClick={() => editor.chain().focus().setTextAlign('left').run()} className={btnClass(editor.isActive({ textAlign: 'left' }))} title="Left align (Ctrl+Shift+L)">
         <AlignLeft className="w-4 h-4" />
       </button>
-
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().setTextAlign('center').run()}
-        className={btnClass(editor.isActive({ textAlign: 'center' }))}
-        title="Center align (Ctrl+Shift+E)"
-      >
+      <button type="button" onClick={() => editor.chain().focus().setTextAlign('center').run()} className={btnClass(editor.isActive({ textAlign: 'center' }))} title="Center align (Ctrl+Shift+E)">
         <AlignCenter className="w-4 h-4" />
       </button>
-
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().setTextAlign('right').run()}
-        className={btnClass(editor.isActive({ textAlign: 'right' }))}
-        title="Right align (Ctrl+Shift+R)"
-      >
+      <button type="button" onClick={() => editor.chain().focus().setTextAlign('right').run()} className={btnClass(editor.isActive({ textAlign: 'right' }))} title="Right align (Ctrl+Shift+R)">
         <AlignRight className="w-4 h-4" />
       </button>
-
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().setTextAlign('justify').run()}
-        className={btnClass(editor.isActive({ textAlign: 'justify' }))}
-        title="Justify (Ctrl+Shift+J)"
-      >
+      <button type="button" onClick={() => editor.chain().focus().setTextAlign('justify').run()} className={btnClass(editor.isActive({ textAlign: 'justify' }))} title="Justify (Ctrl+Shift+J)">
         <AlignJustify className="w-4 h-4" />
       </button>
 
-      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-600 mx-1"></div>
+      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-600 mx-1 shrink-0"></div>
 
       {/* Lists */}
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
-        className={btnClass(editor.isActive('bulletList'))}
-        title="Bulleted list (Ctrl+Shift+8)"
-      >
+      <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={btnClass(editor.isActive('bulletList'))} title="Bulleted list (Ctrl+Shift+8)">
         <List className="w-4 h-4" />
       </button>
-
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        className={btnClass(editor.isActive('orderedList'))}
-        title="Numbered list (Ctrl+Shift+7)"
-      >
+      <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={btnClass(editor.isActive('orderedList'))} title="Numbered list (Ctrl+Shift+7)">
         <ListOrdered className="w-4 h-4" />
       </button>
 
-      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-600 mx-1"></div>
+      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-600 mx-1 shrink-0"></div>
 
       {/* Clear Formatting */}
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
-        className={btnClass(false)}
-        title="Clear formatting (Ctrl+\)"
-      >
+      <button type="button" onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()} className={btnClass(false)} title="Clear formatting (Ctrl+\)">
         <RemoveFormatting className="w-4 h-4" />
       </button>
     </div>
