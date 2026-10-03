@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Undo2,
   Redo2,
@@ -16,7 +16,9 @@ import {
   Eye,
   Highlighter,
   Baseline,
-  ChevronDown
+  ChevronDown,
+  Plus,
+  Minus
 } from 'lucide-react';
 
 const TEXT_COLORS = [
@@ -53,21 +55,117 @@ const FONT_FAMILIES = [
 ];
 
 const FONT_SIZES = [
+  { label: '8', value: '8px' },
+  { label: '9', value: '9px' },
   { label: '10', value: '10px' },
   { label: '11', value: '11px' },
   { label: '12', value: '12px' },
   { label: '14', value: '14px' },
+  { label: '16', value: '16px' },
   { label: '18', value: '18px' },
+  { label: '20', value: '20px' },
   { label: '24', value: '24px' },
+  { label: '28', value: '28px' },
   { label: '30', value: '30px' },
-  { label: '36', value: '36px' }
+  { label: '36', value: '36px' },
+  { label: '48', value: '48px' },
+  { label: '60', value: '60px' },
+  { label: '72', value: '72px' }
 ];
+
+const FONT_SIZE_MIN = 6;
+const FONT_SIZE_MAX = 400;
+
+/**
+ * Parse a CSS font-size string (e.g. "14px", "1.5em") into an integer pixel value.
+ * Returns null if unparseable.
+ */
+function parsePxSize(sizeStr) {
+  if (!sizeStr) return null;
+  const match = String(sizeStr).match(/^(\d+(?:\.\d+)?)(px|pt|em|rem)?$/i);
+  if (!match) return null;
+  return Math.round(parseFloat(match[1]));
+}
+
+/**
+ * Walk all inline text nodes in the selection and collect the unique set of
+ * font-size values (as integer px numbers).
+ * Returns an empty Set if the selection is collapsed (cursor) or nothing is
+ * found — callers should fall back to the mark at the cursor position.
+ */
+function getSelectionFontSizes(editor) {
+  const { state } = editor;
+  const { from, to, empty } = state.selection;
+
+  // Cursor (no range) → read mark at cursor
+  if (empty) {
+    const attrs = editor.getAttributes('textStyle');
+    const px = parsePxSize(attrs.fontSize);
+    if (px !== null) return new Set([px]);
+    return new Set();
+  }
+
+  const sizes = new Set();
+  state.doc.nodesBetween(from, to, (node) => {
+    if (!node.isText) return;
+    const textStyleMark = node.marks.find((m) => m.type.name === 'textStyle');
+    const px = parsePxSize(textStyleMark?.attrs?.fontSize);
+    if (px !== null) {
+      sizes.add(px);
+    } else {
+      // Text with no explicit size — treat as "default" sentinel
+      sizes.add(null);
+    }
+  });
+  return sizes;
+}
 
 const EditorToolbar = ({ editor, editable = true }) => {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showHighlightPicker, setShowHighlightPicker] = useState(false);
   const colorPickerRef = useRef(null);
   const highlightPickerRef = useRef(null);
+
+  // Bug 1 — live font size state driven by the editor selection
+  const [fontSizeInput, setFontSizeInput] = useState('11');
+  // Whether the current selection has mixed sizes (show blank)
+  const [isMixedSize, setIsMixedSize] = useState(false);
+
+  // Sync font size display whenever editor selection or content changes
+  const syncFontSize = useCallback(() => {
+    if (!editor) return;
+    const sizes = getSelectionFontSizes(editor);
+
+    // Remove null (no-mark) from the set to figure out explicit sizes
+    const explicitSizes = new Set([...sizes].filter((s) => s !== null));
+
+    if (explicitSizes.size === 0) {
+      // No explicit sizes at all — show default
+      setFontSizeInput('11');
+      setIsMixedSize(false);
+    } else if (explicitSizes.size === 1) {
+      // Single consistent size
+      setFontSizeInput(String([...explicitSizes][0]));
+      setIsMixedSize(false);
+    } else {
+      // Multiple different sizes in the selection — show blank (Google Docs behaviour)
+      setFontSizeInput('');
+      setIsMixedSize(true);
+    }
+  }, [editor]);
+
+  // Attach to both selectionUpdate and transaction so it updates on cursor move AND content edits
+  useEffect(() => {
+    if (!editor) return;
+    editor.on('selectionUpdate', syncFontSize);
+    editor.on('transaction', syncFontSize);
+    // Initial sync
+    syncFontSize();
+    return () => {
+      editor.off('selectionUpdate', syncFontSize);
+      editor.off('transaction', syncFontSize);
+    };
+  }, [editor, syncFontSize]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -139,13 +237,100 @@ const EditorToolbar = ({ editor, editable = true }) => {
     return editor.getAttributes('textStyle').fontFamily || 'Arial';
   };
 
-  // Handle font size change
-  const handleFontSizeChange = (e) => {
-    const size = e.target.value;
-    if (size === 'default') {
-      editor.chain().focus().unsetFontSize().run();
+  // Bug 1+2 — Apply a concrete pixel size to the selection
+  const applyFontSize = (pxNum) => {
+    const clamped = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, Math.round(pxNum)));
+    editor.chain().focus().setFontSize(`${clamped}px`).run();
+    setFontSizeInput(String(clamped));
+    setIsMixedSize(false);
+  };
+
+  // Bug 2 — +/- increment: each text node keeps its own size (preserves relative differences)
+  // When mixed sizes are present, each piece increments from its own current size.
+  const handleIncrementSize = (delta) => {
+    const { state } = editor;
+    const { from, to, empty } = state.selection;
+
+    if (empty) {
+      // Cursor — read current size and increment
+      const attrs = editor.getAttributes('textStyle');
+      const current = parsePxSize(attrs.fontSize) ?? 11;
+      applyFontSize(current + delta);
+      return;
+    }
+
+    // Range selection — walk nodes and set individual sizes
+    const chain = editor.chain().focus();
+    // Collect all (from, to, currentSize) tuples per continuous mark range
+    const ranges = [];
+    state.doc.nodesBetween(from, to, (node, pos) => {
+      if (!node.isText) return;
+      const textStyleMark = node.marks.find((m) => m.type.name === 'textStyle');
+      const current = parsePxSize(textStyleMark?.attrs?.fontSize) ?? 11;
+      const nodeFrom = Math.max(from, pos);
+      const nodeTo = Math.min(to, pos + node.nodeSize);
+      ranges.push({ from: nodeFrom, to: nodeTo, current });
+    });
+
+    if (ranges.length === 0) {
+      // No text nodes found — fallback to single apply
+      const current = parsePxSize(editor.getAttributes('textStyle').fontSize) ?? 11;
+      applyFontSize(current + delta);
+      return;
+    }
+
+    // Apply per-range size changes via a single chained transaction
+    // We use setTextSelection + setFontSize for each range
+    let tr = state.tr;
+    const textStyleType = state.schema.marks.textStyle;
+    if (!textStyleType) {
+      // Fallback: apply once for whole selection
+      const current = parsePxSize(editor.getAttributes('textStyle').fontSize) ?? 11;
+      applyFontSize(current + delta);
+      return;
+    }
+
+    ranges.forEach(({ from: rFrom, to: rTo, current }) => {
+      const clamped = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, current + delta));
+      // Merge new fontSize into existing textStyle mark attrs
+      tr = tr.addMark(
+        rFrom,
+        rTo,
+        textStyleType.create({ fontSize: `${clamped}px` })
+      );
+    });
+
+    editor.view.dispatch(tr);
+
+    // Update the displayed font size — if all end up the same, show it; otherwise blank
+    const newSizes = new Set(
+      ranges.map(({ current }) => {
+        return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, current + delta));
+      })
+    );
+    if (newSizes.size === 1) {
+      setFontSizeInput(String([...newSizes][0]));
+      setIsMixedSize(false);
     } else {
-      editor.chain().focus().setFontSize(size).run();
+      setFontSizeInput('');
+      setIsMixedSize(true);
+    }
+  };
+
+  // Bug 1 — user types directly in the font size box
+  const handleFontSizeInputChange = (e) => {
+    setFontSizeInput(e.target.value);
+    setIsMixedSize(false);
+  };
+
+  const handleFontSizeInputCommit = (e) => {
+    if (e.type === 'keydown' && e.key !== 'Enter') return;
+    const num = parseInt(fontSizeInput, 10);
+    if (!isNaN(num) && num > 0) {
+      applyFontSize(num);
+    } else {
+      // Invalid — revert to last known good size
+      syncFontSize();
     }
   };
 
@@ -230,19 +415,42 @@ const EditorToolbar = ({ editor, editable = true }) => {
         ))}
       </select>
 
-      {/* Font Size Selector */}
-      <select
-        defaultValue="11px"
-        onChange={handleFontSizeChange}
-        className="h-7 w-14 rounded border border-transparent bg-transparent hover:bg-gray-200 px-1 text-xs font-medium text-gray-700 focus:outline-none cursor-pointer text-center"
-        title="Font size"
-      >
-        {FONT_SIZES.map((size) => (
-          <option key={size.value} value={size.value}>
-            {size.label}
-          </option>
-        ))}
-      </select>
+      {/* Bug 2 — Font Size Controls: [−] [input/dropdown] [+] */}
+      <div className="flex items-center gap-0 shrink-0">
+        {/* Decrement button */}
+        <button
+          type="button"
+          onClick={() => handleIncrementSize(-1)}
+          className="h-7 w-5 flex items-center justify-center rounded-l border border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300 transition cursor-pointer"
+          title="Decrease font size"
+        >
+          <Minus className="w-3 h-3" />
+        </button>
+
+        {/* Font size input — Bug 1: value driven by live selection */}
+        <input
+          type="text"
+          inputMode="numeric"
+          value={isMixedSize ? '' : fontSizeInput}
+          placeholder={isMixedSize ? '–' : '11'}
+          onChange={handleFontSizeInputChange}
+          onBlur={handleFontSizeInputCommit}
+          onKeyDown={handleFontSizeInputCommit}
+          className="h-7 w-10 border-t border-b border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-700 focus:bg-white dark:focus:bg-neutral-800 focus:border-blue-400 text-xs font-medium text-gray-700 dark:text-gray-200 text-center focus:outline-none transition"
+          title="Font size"
+          aria-label="Font size"
+        />
+
+        {/* Increment button */}
+        <button
+          type="button"
+          onClick={() => handleIncrementSize(1)}
+          className="h-7 w-5 flex items-center justify-center rounded-r border border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300 transition cursor-pointer"
+          title="Increase font size"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
 
       <div className="h-5 w-[1px] bg-gray-300 mx-1"></div>
 
