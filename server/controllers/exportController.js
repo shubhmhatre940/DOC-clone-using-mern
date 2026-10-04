@@ -201,10 +201,39 @@ export const exportDocument = async (req, res) => {
           `;
         }
 
-        const browser = await puppeteer.launch({
+        // Build Puppeteer launch options.
+        // PUPPETEER_EXECUTABLE_PATH lets you override the bundled Chromium with a
+        // system-installed Chrome on containerised hosts (e.g. Render) where the
+        // bundled binary may not be present or may lack required system libs.
+        const launchOptions = {
           headless: true,
-          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
-        });
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-gpu',
+            // Required in Docker/Render where /dev/shm is too small for Chromium
+            '--disable-dev-shm-usage',
+            '--single-process'
+          ]
+        };
+        if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+          launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+          console.log('[PDF Export] Using custom Chromium path:', process.env.PUPPETEER_EXECUTABLE_PATH);
+        }
+
+        console.log('[PDF Export] Launching browser for doc:', document._id);
+        let browser;
+        try {
+          browser = await puppeteer.launch(launchOptions);
+        } catch (launchErr) {
+          console.error('[PDF Export] Browser launch failed:');
+          console.error('  message:', launchErr.message);
+          console.error('  stack:', launchErr.stack);
+          return res.status(500).json({
+            message: 'PDF generation failed: could not launch browser. ' + launchErr.message
+          });
+        }
+
         try {
           const page = await browser.newPage();
           await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
@@ -226,6 +255,13 @@ export const exportDocument = async (req, res) => {
           // Puppeteer page.pdf() returns Uint8Array; convert explicitly to Node Buffer
           // and send with res.end() to avoid Express converting Uint8Array to a JSON object
           const pdfBuffer = Buffer.from(u8Array);
+
+          if (!pdfBuffer || pdfBuffer.length === 0) {
+            console.error('[PDF Export] Generated PDF buffer is empty for doc:', document._id);
+            return res.status(500).json({ message: 'PDF generation produced an empty file.' });
+          }
+
+          console.log(`[PDF Export] Success — buffer size: ${pdfBuffer.length} bytes for doc: ${document._id}`);
           res.setHeader('Content-Type', 'application/pdf');
           res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.pdf"`);
           res.setHeader('Content-Length', pdfBuffer.length);
@@ -239,7 +275,8 @@ export const exportDocument = async (req, res) => {
         return res.status(400).json({ message: `Unsupported export format: ${format}` });
     }
   } catch (error) {
-    console.error('[Export Error]:', error);
+    console.error('[Export Error] message:', error.message);
+    console.error('[Export Error] stack:', error.stack);
     return res.status(500).json({ message: error.message || 'Failed to export document' });
   }
 };
