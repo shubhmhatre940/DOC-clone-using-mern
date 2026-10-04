@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { FileText, Layout, X, Check, Edit2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { FileText, Layout, X, Check, Edit2, Trash2 } from 'lucide-react';
 
 const PageLayoutContainer = ({
   children,
@@ -92,6 +92,25 @@ const PageLayoutContainer = ({
     setIsEditingFooter(false);
     if (onUpdatePageSettings && localFooterText !== footerText) {
       onUpdatePageSettings({ footerText: localFooterText });
+    }
+  };
+
+  // Clear handlers — set text to '' and immediately persist to pageSettings
+  const handleClearHeader = (e) => {
+    e.stopPropagation();
+    setLocalHeaderText('');
+    setIsEditingHeader(false);
+    if (onUpdatePageSettings) {
+      onUpdatePageSettings({ headerText: '' });
+    }
+  };
+
+  const handleClearFooter = (e) => {
+    e.stopPropagation();
+    setLocalFooterText('');
+    setIsEditingFooter(false);
+    if (onUpdatePageSettings) {
+      onUpdatePageSettings({ footerText: '' });
     }
   };
 
@@ -202,13 +221,13 @@ const PageLayoutContainer = ({
         >
           {/* Header Band */}
           <div
-            className={`mb-4 pb-2 border-b transition-colors select-none flex items-center justify-between text-xs ${
+            className={`mb-4 pb-2 border-b transition-colors select-none flex items-center justify-between text-xs group ${
               isEditingHeader
                 ? 'border-blue-400 bg-blue-50/50 dark:bg-blue-900/20 p-2 rounded'
                 : 'border-gray-200 dark:border-neutral-800 text-gray-500 hover:border-blue-300 cursor-pointer'
             }`}
-            onDoubleClick={() => setIsEditingHeader(true)}
-            title="Double-click to edit Header"
+            onDoubleClick={() => isEditable && setIsEditingHeader(true)}
+            title={isEditable ? 'Double-click to edit Header' : ''}
           >
             {isEditingHeader ? (
               <div className="w-full flex items-center gap-2">
@@ -218,11 +237,25 @@ const PageLayoutContainer = ({
                   value={localHeaderText}
                   onChange={(e) => setLocalHeaderText(e.target.value)}
                   onBlur={handleSaveHeader}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveHeader()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveHeader();
+                    if (e.key === 'Escape') { setIsEditingHeader(false); setLocalHeaderText(headerText); }
+                  }}
                   placeholder="Type header text (e.g., Company, Document Title)..."
                   className="flex-1 bg-white dark:bg-neutral-800 border border-blue-300 rounded px-2 py-1 text-xs text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   autoFocus
                 />
+                {/* Clear header button in edit mode */}
+                {localHeaderText && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); setLocalHeaderText(''); }}
+                    className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition"
+                    title="Clear header text"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleSaveHeader}
@@ -236,15 +269,28 @@ const PageLayoutContainer = ({
                 <span className="truncate max-w-[70%] font-medium">
                   {headerText || (
                     <span className="text-gray-400 italic text-[11px]">
-                      {isEditable ? 'Header (Double-click to edit)' : ''}
+                      {isEditable ? 'Header — double-click to edit' : ''}
                     </span>
                   )}
                 </span>
-                {showPageNumbers && pageNumberPosition === 'header-right' && (
-                  <span className="font-mono text-gray-500 text-[11px] bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded">
-                    Page 1 of {pageCount}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {showPageNumbers && pageNumberPosition === 'header-right' && (
+                    <span className="font-mono text-gray-500 text-[11px] bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded">
+                      Page 1 of {pageCount}
+                    </span>
+                  )}
+                  {/* Clear header button — only visible on hover when there is text and doc is editable */}
+                  {isEditable && headerText && (
+                    <button
+                      type="button"
+                      onClick={handleClearHeader}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all duration-150"
+                      title="Remove header"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -254,13 +300,13 @@ const PageLayoutContainer = ({
 
           {/* Footer Band */}
           <div
-            className={`mt-6 pt-3 border-t transition-colors select-none flex items-center justify-between text-xs ${
+            className={`mt-6 pt-3 border-t transition-colors select-none flex items-center justify-between text-xs group ${
               isEditingFooter
                 ? 'border-blue-400 bg-blue-50/50 dark:bg-blue-900/20 p-2 rounded'
                 : 'border-gray-200 dark:border-neutral-800 text-gray-500 hover:border-blue-300 cursor-pointer'
             }`}
-            onDoubleClick={() => setIsEditingFooter(true)}
-            title="Double-click to edit Footer"
+            onDoubleClick={() => isEditable && setIsEditingFooter(true)}
+            title={isEditable ? 'Double-click to edit Footer' : ''}
           >
             {isEditingFooter ? (
               <div className="w-full flex items-center gap-2">
@@ -270,11 +316,25 @@ const PageLayoutContainer = ({
                   value={localFooterText}
                   onChange={(e) => setLocalFooterText(e.target.value)}
                   onBlur={handleSaveFooter}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveFooter()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveFooter();
+                    if (e.key === 'Escape') { setIsEditingFooter(false); setLocalFooterText(footerText); }
+                  }}
                   placeholder="Type footer text (e.g., Confidential, Author)..."
                   className="flex-1 bg-white dark:bg-neutral-800 border border-blue-300 rounded px-2 py-1 text-xs text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   autoFocus
                 />
+                {/* Clear footer button in edit mode */}
+                {localFooterText && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); setLocalFooterText(''); }}
+                    className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition"
+                    title="Clear footer text"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleSaveFooter}
@@ -288,19 +348,32 @@ const PageLayoutContainer = ({
                 <span className="truncate max-w-[70%] font-medium">
                   {footerText || (
                     <span className="text-gray-400 italic text-[11px]">
-                      {isEditable ? 'Footer (Double-click to edit)' : ''}
+                      {isEditable ? 'Footer — double-click to edit' : ''}
                     </span>
                   )}
                 </span>
-                {showPageNumbers && pageNumberPosition !== 'header-right' && (
-                  <span
-                    className={`font-mono text-gray-500 text-[11px] bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded ${
-                      pageNumberPosition === 'footer-center' ? 'mx-auto' : ''
-                    }`}
-                  >
-                    Page 1 of {pageCount}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {showPageNumbers && pageNumberPosition !== 'header-right' && (
+                    <span
+                      className={`font-mono text-gray-500 text-[11px] bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded ${
+                        pageNumberPosition === 'footer-center' ? 'mx-auto' : ''
+                      }`}
+                    >
+                      Page 1 of {pageCount}
+                    </span>
+                  )}
+                  {/* Clear footer button — only visible on hover when there is text and doc is editable */}
+                  {isEditable && footerText && (
+                    <button
+                      type="button"
+                      onClick={handleClearFooter}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all duration-150"
+                      title="Remove footer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </div>
