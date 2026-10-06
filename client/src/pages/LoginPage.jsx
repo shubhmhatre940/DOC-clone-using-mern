@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FileText, AlertCircle, ArrowRight } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { FileText, AlertCircle, ArrowRight, Sun, Moon } from 'lucide-react';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { login, error, clearError } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -24,24 +26,38 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f0f4f9] px-4 py-12">
-      <div className="w-full max-w-[440px] rounded-3xl bg-white p-8 sm:p-10 shadow-sm border border-gray-200">
-        {/* Google Docs Icon */}
+    <div className="relative flex min-h-screen items-center justify-center bg-[#f8fafd] dark:bg-[#121316] px-4 py-12 transition-colors duration-200">
+      {/* Top Floating Theme Toggle */}
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className="absolute top-6 right-6 p-2.5 rounded-full bg-white dark:bg-[#1e2024] text-gray-700 dark:text-gray-200 shadow-sm border border-gray-200 dark:border-neutral-800 hover:bg-gray-100 dark:hover:bg-neutral-800 transition focus:outline-none cursor-pointer"
+        title={isDark ? 'Switch to Light mode' : 'Switch to Dark mode'}
+      >
+        {isDark ? (
+          <Sun className="w-5 h-5 text-amber-400" />
+        ) : (
+          <Moon className="w-5 h-5 text-gray-600" />
+        )}
+      </button>
+
+      <div className="w-full max-w-[420px] rounded-2xl bg-white dark:bg-[#1c1e22] p-8 sm:p-10 shadow-xl border border-gray-200/80 dark:border-neutral-800 transition-colors">
+        {/* Google Docs Icon Branding */}
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
             <FileText className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-gray-900">Google Docs</h1>
-            <p className="text-xs text-gray-500 font-medium">MERN Edition</p>
+            <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">DocFusion</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Google Docs Clone</p>
           </div>
         </div>
 
-        <h2 className="text-2xl font-normal text-gray-800 mb-2">Sign in</h2>
-        <p className="text-sm text-gray-600 mb-6">to continue to Docs</p>
+        <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">Sign in</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Continue to your workspace</p>
 
         {error && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 border border-red-200">
+          <div className="mb-5 flex items-center gap-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 p-3.5 text-sm text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -49,7 +65,7 @@ const LoginPage = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-700 mb-1.5">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
               Email address
             </label>
             <input
@@ -61,16 +77,14 @@ const LoginPage = () => {
                 setEmail(e.target.value);
               }}
               placeholder="name@example.com"
-              className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 transition"
+              className="w-full rounded-xl border border-gray-300 dark:border-neutral-700 bg-white dark:bg-[#25282e] px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition"
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-700">
-                Password
-              </label>
-            </div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+              Password
+            </label>
             <input
               type="password"
               required
@@ -80,7 +94,7 @@ const LoginPage = () => {
                 setPassword(e.target.value);
               }}
               placeholder="••••••••"
-              className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 transition"
+              className="w-full rounded-xl border border-gray-300 dark:border-neutral-700 bg-white dark:bg-[#25282e] px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition"
             />
           </div>
 
@@ -88,7 +102,7 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#1a73e8] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#1557b0] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-60 transition shadow-sm"
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-4 py-2.5 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:opacity-60 transition shadow-sm cursor-pointer"
             >
               {submitting ? (
                 <>
@@ -105,11 +119,11 @@ const LoginPage = () => {
           </div>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-gray-100 flex items-center justify-between text-sm">
-          <span className="text-gray-600">Not your computer?</span>
+        <div className="mt-8 pt-6 border-t border-gray-100 dark:border-neutral-800 flex items-center justify-between text-sm">
+          <span className="text-gray-500 dark:text-gray-400">Need an account?</span>
           <Link
             to="/signup"
-            className="font-medium text-[#1a73e8] hover:text-[#1557b0] hover:underline"
+            className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
           >
             Create account
           </Link>

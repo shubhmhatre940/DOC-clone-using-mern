@@ -175,7 +175,7 @@ const DashboardPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-[#f9fbfd] dark:bg-[#141517] text-gray-900 dark:text-gray-100 flex flex-col transition-colors duration-200">
       {/* Top Search & User Bar */}
       <Navbar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
@@ -183,14 +183,14 @@ const DashboardPage = () => {
       {!searchQuery && activeTab !== 'trash' && <TemplateHeader />}
 
       {/* Main Recent Documents List */}
-      <main className="flex-1 bg-white">
+      <main className="flex-1 bg-[#f9fbfd] dark:bg-[#141517] transition-colors duration-200">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24">
-            <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-2" />
-            <p className="text-xs text-gray-500 font-medium">Loading documents...</p>
+            <Loader2 className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin mb-2" />
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Loading documents...</p>
           </div>
         ) : error ? (
-          <div className="max-w-md mx-auto my-12 p-4 rounded-xl bg-red-50 text-red-700 text-sm text-center border border-red-200">
+          <div className="max-w-md mx-auto my-12 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-sm text-center border border-rose-200 dark:border-rose-900/60">
             {error}
           </div>
         ) : (

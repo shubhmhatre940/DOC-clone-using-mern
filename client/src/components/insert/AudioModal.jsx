@@ -87,15 +87,17 @@ const AudioModal = ({ isOpen, onClose, editor }) => {
       const publicUrl = res.url;
 
       if (editor) {
-        // Embed HTML audio player block into editor
-        const audioHtml = `
-          <div class="audio-embed-wrapper" style="margin: 16px 0; padding: 12px; background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 12px; display: inline-block;">
-            <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: 600; color: #4b5563;">🎵 Audio Clip</p>
-            <audio controls src="${publicUrl}" style="height: 36px; outline: none;"></audio>
-          </div>
-          <p></p>
-        `;
-        editor.chain().focus().insertContent(audioHtml).run();
+        // Insert proper TipTap audio node
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            type: 'audio',
+            attrs: {
+              src: publicUrl
+            }
+          })
+          .run();
       }
 
       onClose();

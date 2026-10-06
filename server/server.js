@@ -13,6 +13,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import mediaRoutes from './routes/mediaRoutes.js';
 import folderRoutes from './routes/folderRoutes.js';
 import grammarRoutes from './routes/grammarRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
@@ -73,6 +74,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/grammar-check', grammarRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Static uploads serving
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

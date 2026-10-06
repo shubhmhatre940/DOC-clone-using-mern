@@ -16,7 +16,8 @@ import {
   Eye,
   Highlighter,
   Baseline,
-  ChevronDown
+  Plus,
+  Minus
 } from 'lucide-react';
 
 const TEXT_COLORS = [
@@ -29,7 +30,8 @@ const TEXT_COLORS = [
   { name: 'Green', color: '#38761d' },
   { name: 'Cyan', color: '#45818e' },
   { name: 'Blue', color: '#1155cc' },
-  { name: 'Purple', color: '#674ea7' }
+  { name: 'Purple', color: '#674ea7' },
+  { name: 'White', color: '#ffffff' }
 ];
 
 const HIGHLIGHT_COLORS = [
@@ -44,30 +46,44 @@ const HIGHLIGHT_COLORS = [
 
 const FONT_FAMILIES = [
   { label: 'Arial', value: 'Arial' },
+  { label: 'Inter', value: 'Inter' },
+  { label: 'Roboto', value: 'Roboto' },
   { label: 'Times New Roman', value: 'Times New Roman' },
   { label: 'Georgia', value: 'Georgia' },
   { label: 'Courier New', value: 'Courier New' },
   { label: 'Verdana', value: 'Verdana' },
   { label: 'Calibri', value: 'Calibri' },
+  { label: 'Trebuchet MS', value: 'Trebuchet MS' },
   { label: 'Comic Sans MS', value: 'Comic Sans MS' }
 ];
 
-const FONT_SIZES = [
-  { label: '10', value: '10px' },
-  { label: '11', value: '11px' },
-  { label: '12', value: '12px' },
-  { label: '14', value: '14px' },
-  { label: '18', value: '18px' },
-  { label: '24', value: '24px' },
-  { label: '30', value: '30px' },
-  { label: '36', value: '36px' }
+const STANDARD_FONT_SIZES = [
+  '8px', '9px', '10px', '11px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px', '72px'
 ];
 
 const EditorToolbar = ({ editor, editable = true }) => {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showHighlightPicker, setShowHighlightPicker] = useState(false);
+  const [, setSelectionCount] = useState(0);
   const colorPickerRef = useRef(null);
   const highlightPickerRef = useRef(null);
+
+  // Subscribe to TipTap selection & transaction updates so toolbar reactively updates
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleUpdate = () => {
+      setSelectionCount((c) => c + 1);
+    };
+
+    editor.on('selectionUpdate', handleUpdate);
+    editor.on('transaction', handleUpdate);
+
+    return () => {
+      editor.off('selectionUpdate', handleUpdate);
+      editor.off('transaction', handleUpdate);
+    };
+  }, [editor]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -90,13 +106,13 @@ const EditorToolbar = ({ editor, editable = true }) => {
   // If document is in read-only mode for viewers/commenters
   if (!editable) {
     return (
-      <div className="sticky top-0 z-20 flex items-center justify-between bg-[#edf2fa] px-4 py-2 border-b border-gray-300 select-none">
-        <div className="flex items-center gap-2 text-xs text-gray-700 font-medium">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-800">
+      <div className="sticky top-0 z-20 flex items-center justify-between bg-[#edf2fa] dark:bg-[#1a1b1e] px-4 py-2 border-b border-gray-300 dark:border-neutral-800 select-none">
+        <div className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 font-medium">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300">
             <Eye className="w-3.5 h-3.5" />
-            <span>Viewing</span>
+            <span>Viewing Mode</span>
           </div>
-          <span className="text-gray-500 hidden sm:inline">
+          <span className="text-gray-500 dark:text-gray-400 hidden sm:inline">
             You do not have permission to edit this document
           </span>
         </div>
@@ -136,10 +152,17 @@ const EditorToolbar = ({ editor, editable = true }) => {
   };
 
   const getCurrentFontFamily = () => {
-    return editor.getAttributes('textStyle').fontFamily || 'Arial';
+    const font = editor.getAttributes('textStyle').fontFamily;
+    return font || 'Arial';
   };
 
   // Handle font size change
+  const getCurrentFontSize = () => {
+    const size = editor.getAttributes('textStyle').fontSize;
+    if (!size) return '11px';
+    return size.endsWith('px') || size.endsWith('pt') ? size : `${size}px`;
+  };
+
   const handleFontSizeChange = (e) => {
     const size = e.target.value;
     if (size === 'default') {
@@ -147,6 +170,13 @@ const EditorToolbar = ({ editor, editable = true }) => {
     } else {
       editor.chain().focus().setFontSize(size).run();
     }
+  };
+
+  const changeFontSizeBy = (delta) => {
+    const currentSizeStr = getCurrentFontSize();
+    const numericVal = parseInt(currentSizeStr, 10) || 11;
+    const newSize = Math.max(6, Math.min(144, numericVal + delta));
+    editor.chain().focus().setFontSize(`${newSize}px`).run();
   };
 
   // Handle text color selection
@@ -169,17 +199,22 @@ const EditorToolbar = ({ editor, editable = true }) => {
     setShowHighlightPicker(false);
   };
 
+  const currentFontSize = getCurrentFontSize();
+  const fontSizesToDisplay = STANDARD_FONT_SIZES.includes(currentFontSize)
+    ? STANDARD_FONT_SIZES
+    : [...STANDARD_FONT_SIZES, currentFontSize].sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+
   const btnClass = (isActive = false, disabled = false) =>
-    `p-1.5 rounded transition flex items-center justify-center cursor-pointer shrink-0 ${
+    `p-1.5 rounded-lg transition flex items-center justify-center cursor-pointer shrink-0 ${
       disabled
         ? 'opacity-40 cursor-not-allowed text-gray-400 dark:text-gray-600'
         : isActive
-        ? 'bg-[#e8f0fe] dark:bg-blue-950/60 text-[#1a73e8] dark:text-blue-400'
-        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-700'
+        ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-semibold'
+        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/80 dark:hover:bg-neutral-800'
     }`;
 
   return (
-    <div className="sticky top-0 z-20 flex items-center gap-0.5 sm:gap-1 bg-[#edf2fa] dark:bg-[#202124] px-2 sm:px-4 py-1.5 border-b border-gray-300 dark:border-[#383a3d] select-none overflow-x-auto scrollbar-none transition-colors">
+    <div className="sticky top-0 z-20 flex items-center gap-0.5 sm:gap-1 bg-[#edf2fa] dark:bg-[#1a1c1f] px-2 sm:px-4 py-1.5 border-b border-gray-300 dark:border-neutral-800 select-none overflow-x-auto scrollbar-none transition-colors">
       {/* Undo / Redo */}
       <button
         type="button"
@@ -201,50 +236,72 @@ const EditorToolbar = ({ editor, editable = true }) => {
         <Redo2 className="w-4 h-4" />
       </button>
 
-      <div className="h-5 w-[1px] bg-gray-300 mx-1"></div>
+      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-700 mx-1"></div>
 
       {/* Heading / Style Selector */}
       <select
         value={getCurrentHeadingValue()}
         onChange={handleHeadingChange}
-        className="h-7 rounded border border-transparent bg-transparent hover:bg-gray-200 px-2 text-xs font-medium text-gray-700 focus:outline-none cursor-pointer"
+        className="h-7 rounded-lg border border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-800 px-2 text-xs font-semibold text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer"
         title="Styles"
       >
-        <option value="paragraph">Normal text</option>
-        <option value="h1">Heading 1</option>
-        <option value="h2">Heading 2</option>
-        <option value="h3">Heading 3</option>
+        <option value="paragraph" className="dark:bg-[#1e2024]">Normal text</option>
+        <option value="h1" className="dark:bg-[#1e2024]">Heading 1</option>
+        <option value="h2" className="dark:bg-[#1e2024]">Heading 2</option>
+        <option value="h3" className="dark:bg-[#1e2024]">Heading 3</option>
       </select>
 
       {/* Font Family Selector */}
       <select
         value={getCurrentFontFamily()}
         onChange={handleFontFamilyChange}
-        className="h-7 max-w-[120px] rounded border border-transparent bg-transparent hover:bg-gray-200 px-1.5 text-xs font-medium text-gray-700 focus:outline-none cursor-pointer truncate"
-        title="Font"
+        className="h-7 max-w-[130px] rounded-lg border border-transparent bg-transparent hover:bg-gray-200 dark:hover:bg-neutral-800 px-2 text-xs font-semibold text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer truncate"
+        title="Font family"
       >
         {FONT_FAMILIES.map((font) => (
-          <option key={font.value} value={font.value} style={{ fontFamily: font.value }}>
+          <option key={font.value} value={font.value} style={{ fontFamily: font.value }} className="dark:bg-[#1e2024]">
             {font.label}
           </option>
         ))}
       </select>
 
-      {/* Font Size Selector */}
-      <select
-        defaultValue="11px"
-        onChange={handleFontSizeChange}
-        className="h-7 w-14 rounded border border-transparent bg-transparent hover:bg-gray-200 px-1 text-xs font-medium text-gray-700 focus:outline-none cursor-pointer text-center"
-        title="Font size"
-      >
-        {FONT_SIZES.map((size) => (
-          <option key={size.value} value={size.value}>
-            {size.label}
-          </option>
-        ))}
-      </select>
+      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-700 mx-1"></div>
 
-      <div className="h-5 w-[1px] bg-gray-300 mx-1"></div>
+      {/* Font Size Adjusters (- / + / Select) */}
+      <div className="flex items-center bg-white/60 dark:bg-neutral-800/60 rounded-lg p-0.5 border border-gray-200 dark:border-neutral-700">
+        <button
+          type="button"
+          onClick={() => changeFontSizeBy(-1)}
+          className="p-1 rounded text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-700 transition cursor-pointer"
+          title="Decrease font size"
+        >
+          <Minus className="w-3 h-3" />
+        </button>
+
+        <select
+          value={currentFontSize}
+          onChange={handleFontSizeChange}
+          className="h-6 w-14 rounded bg-transparent px-1 text-xs font-semibold text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer text-center appearance-none"
+          title="Font size"
+        >
+          {fontSizesToDisplay.map((size) => (
+            <option key={size} value={size} className="dark:bg-[#1e2024]">
+              {parseInt(size, 10)}
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          onClick={() => changeFontSizeBy(1)}
+          className="p-1 rounded text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-700 transition cursor-pointer"
+          title="Increase font size"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
+
+      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-700 mx-1"></div>
 
       {/* Bold */}
       <button
@@ -298,13 +355,13 @@ const EditorToolbar = ({ editor, editable = true }) => {
         </button>
 
         {showColorPicker && (
-          <div className="absolute left-0 top-8 z-30 p-2 bg-white rounded-xl shadow-lg border border-gray-200 grid grid-cols-5 gap-1.5 w-40">
+          <div className="absolute left-0 top-9 z-30 p-2.5 bg-white dark:bg-[#1e2024] rounded-xl shadow-xl border border-gray-200 dark:border-neutral-800 grid grid-cols-6 gap-1.5 w-48">
             {TEXT_COLORS.map((tc) => (
               <button
                 key={tc.color}
                 type="button"
                 onClick={() => handleSetColor(tc.color)}
-                className="w-6 h-6 rounded-full border border-gray-300 transition-transform hover:scale-115 focus:outline-none"
+                className="w-6 h-6 rounded-full border border-gray-300 dark:border-neutral-600 transition-transform hover:scale-115 focus:outline-none cursor-pointer"
                 style={{ backgroundColor: tc.color }}
                 title={tc.name}
               />
@@ -325,14 +382,14 @@ const EditorToolbar = ({ editor, editable = true }) => {
         </button>
 
         {showHighlightPicker && (
-          <div className="absolute left-0 top-8 z-30 p-2 bg-white rounded-xl shadow-lg border border-gray-200 grid grid-cols-4 gap-1.5 w-36">
+          <div className="absolute left-0 top-9 z-30 p-2.5 bg-white dark:bg-[#1e2024] rounded-xl shadow-xl border border-gray-200 dark:border-neutral-800 grid grid-cols-4 gap-1.5 w-40">
             {HIGHLIGHT_COLORS.map((hc) => (
               <button
                 key={hc.name}
                 type="button"
                 onClick={() => handleSetHighlight(hc.color)}
-                className={`w-6 h-6 rounded border transition-transform hover:scale-115 focus:outline-none flex items-center justify-center text-[10px] ${
-                  !hc.color ? 'border-gray-400 bg-transparent text-gray-500' : 'border-gray-200'
+                className={`w-6 h-6 rounded-md border transition-transform hover:scale-115 focus:outline-none flex items-center justify-center text-[10px] cursor-pointer ${
+                  !hc.color ? 'border-gray-400 dark:border-neutral-600 bg-transparent text-gray-500' : 'border-gray-200 dark:border-neutral-700'
                 }`}
                 style={{ backgroundColor: hc.color || 'transparent' }}
                 title={hc.name}
@@ -344,7 +401,7 @@ const EditorToolbar = ({ editor, editable = true }) => {
         )}
       </div>
 
-      <div className="h-5 w-[1px] bg-gray-300 mx-1"></div>
+      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-700 mx-1"></div>
 
       {/* Alignment */}
       <button
@@ -353,7 +410,7 @@ const EditorToolbar = ({ editor, editable = true }) => {
         className={btnClass(editor.isActive({ textAlign: 'left' }))}
         title="Left align (Ctrl+Shift+L)"
       >
-        <AlignLeft className="w-4 h-4" />
+        <AlignLeft className="w-4 h-4 text-gray-700 dark:text-gray-300" />
       </button>
 
       <button
@@ -362,7 +419,7 @@ const EditorToolbar = ({ editor, editable = true }) => {
         className={btnClass(editor.isActive({ textAlign: 'center' }))}
         title="Center align (Ctrl+Shift+E)"
       >
-        <AlignCenter className="w-4 h-4" />
+        <AlignCenter className="w-4 h-4 text-gray-700 dark:text-gray-300" />
       </button>
 
       <button
@@ -371,7 +428,7 @@ const EditorToolbar = ({ editor, editable = true }) => {
         className={btnClass(editor.isActive({ textAlign: 'right' }))}
         title="Right align (Ctrl+Shift+R)"
       >
-        <AlignRight className="w-4 h-4" />
+        <AlignRight className="w-4 h-4 text-gray-700 dark:text-gray-300" />
       </button>
 
       <button
@@ -380,10 +437,10 @@ const EditorToolbar = ({ editor, editable = true }) => {
         className={btnClass(editor.isActive({ textAlign: 'justify' }))}
         title="Justify (Ctrl+Shift+J)"
       >
-        <AlignJustify className="w-4 h-4" />
+        <AlignJustify className="w-4 h-4 text-gray-700 dark:text-gray-300" />
       </button>
 
-      <div className="h-5 w-[1px] bg-gray-300 mx-1"></div>
+      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-700 mx-1"></div>
 
       {/* Lists */}
       <button
@@ -392,7 +449,7 @@ const EditorToolbar = ({ editor, editable = true }) => {
         className={btnClass(editor.isActive('bulletList'))}
         title="Bulleted list (Ctrl+Shift+8)"
       >
-        <List className="w-4 h-4" />
+        <List className="w-4 h-4 text-gray-700 dark:text-gray-300" />
       </button>
 
       <button
@@ -401,10 +458,10 @@ const EditorToolbar = ({ editor, editable = true }) => {
         className={btnClass(editor.isActive('orderedList'))}
         title="Numbered list (Ctrl+Shift+7)"
       >
-        <ListOrdered className="w-4 h-4" />
+        <ListOrdered className="w-4 h-4 text-gray-700 dark:text-gray-300" />
       </button>
 
-      <div className="h-5 w-[1px] bg-gray-300 mx-1"></div>
+      <div className="h-5 w-[1px] bg-gray-300 dark:bg-neutral-700 mx-1"></div>
 
       {/* Clear Formatting */}
       <button
@@ -413,10 +470,12 @@ const EditorToolbar = ({ editor, editable = true }) => {
         className={btnClass(false)}
         title="Clear formatting (Ctrl+\)"
       >
-        <RemoveFormatting className="w-4 h-4" />
+        <RemoveFormatting className="w-4 h-4 text-gray-700 dark:text-gray-300" />
       </button>
     </div>
   );
 };
 
 export default EditorToolbar;
+
+

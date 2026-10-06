@@ -48,6 +48,9 @@
   font-size: 1rem;
   color: #202124;
 }
+.dark .tiptap p {
+  color: #e3e3e3;
+}
 
 .tiptap h1 {
   font-size: 2rem;
@@ -56,6 +59,9 @@
   margin-top: 1.25rem;
   margin-bottom: 0.75rem;
   color: #1f2937;
+}
+.dark .tiptap h1 {
+  color: #ffffff;
 }
 
 .tiptap h2 {
@@ -66,6 +72,9 @@
   margin-bottom: 0.5rem;
   color: #374151;
 }
+.dark .tiptap h2 {
+  color: #f3f4f6;
+}
 
 .tiptap h3 {
   font-size: 1.25rem;
@@ -74,6 +83,9 @@
   margin-top: 0.85rem;
   margin-bottom: 0.4rem;
   color: #4b5563;
+}
+.dark .tiptap h3 {
+  color: #e5e7eb;
 }
 
 .tiptap ul {
@@ -93,6 +105,10 @@
 .tiptap li {
   margin-top: 0.25rem;
   margin-bottom: 0.25rem;
+  color: #202124;
+}
+.dark .tiptap li {
+  color: #e3e3e3;
 }
 
 .tiptap blockquote {
@@ -101,6 +117,19 @@
   color: #5f6368;
   font-style: italic;
   margin: 1rem 0;
+}
+.dark .tiptap blockquote {
+  border-left-color: #4b5563;
+  color: #9ca3af;
+}
+
+.dark .tiptap table td,
+.dark .tiptap table th {
+  border-color: #374151;
+  color: #e3e3e3;
+}
+.dark .tiptap table th {
+  background-color: #26282b;
 }
 
 /* TipTap Placeholder */
@@ -210,7 +239,7 @@
   }
 }
 
-/* TipTap Table Styles */
+/* TipTap Table Styles & Column Resize Handles */
 .tiptap table {
   border-collapse: collapse;
   table-layout: fixed;
@@ -229,6 +258,11 @@
   position: relative;
 }
 
+.dark .tiptap table td,
+.dark .tiptap table th {
+  border-color: #44474e;
+}
+
 .tiptap table th {
   font-weight: 600;
   text-align: left;
@@ -242,6 +276,29 @@
   left: 0; right: 0; top: 0; bottom: 0;
   background: rgba(66, 133, 244, 0.15);
   pointer-events: none;
+}
+
+/* TipTap Table Column Resize Handle (MS Word Style Drag Handles) */
+.tiptap table .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: #2563eb;
+  pointer-events: none;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.tiptap table td:hover .column-resize-handle,
+.tiptap table th:hover .column-resize-handle {
+  opacity: 0.6;
+}
+
+.tiptap.resize-cursor {
+  cursor: col-resize;
 }
 
 /* Page Break styling in editor */

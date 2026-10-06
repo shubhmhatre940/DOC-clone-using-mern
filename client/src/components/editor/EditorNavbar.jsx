@@ -15,7 +15,8 @@ import {
   MessageSquare,
   BookOpen,
   ListTree,
-  Activity as ActivityIcon
+  Activity as ActivityIcon,
+  Sparkles
 } from 'lucide-react';
 import NotificationBell from '../notifications/NotificationBell';
 
@@ -40,9 +41,10 @@ const EditorNavbar = ({
   onToggleFocusMode,
   isReadingMode = false,
   onToggleReadingMode,
-  // Activity log & Grammar
+  // Activity log & Grammar & AI
   onOpenActivityLog,
   onOpenGrammarCheck,
+  onOpenAiAssistant,
   // Menu bar props
   onMakeCopy,
   onDelete,
@@ -170,13 +172,13 @@ const EditorNavbar = ({
                   onChange={(e) => setLocalTitle(e.target.value)}
                   onBlur={handleTitleSubmit}
                   onKeyDown={handleKeyDown}
-                  className="text-lg font-medium text-gray-900 border border-blue-500 rounded px-1 py-0.5 outline-none bg-white max-w-sm sm:max-w-md shadow-xs"
+                  className="text-lg font-medium text-gray-900 dark:text-white border border-blue-500 dark:border-blue-400 rounded px-1.5 py-0.5 outline-none bg-white dark:bg-[#282a2e] max-w-sm sm:max-w-md shadow-xs"
                 />
               ) : (
                 <h1
                   onClick={() => isEditable && setIsEditingTitle(true)}
-                  className={`text-lg font-medium text-gray-800 border border-transparent rounded px-1 py-0.5 truncate max-w-xs sm:max-w-md transition ${
-                    isEditable ? 'hover:border-gray-400 cursor-pointer' : 'cursor-default'
+                  className={`text-lg font-medium text-gray-800 dark:text-gray-100 border border-transparent rounded px-1 py-0.5 truncate max-w-xs sm:max-w-md transition ${
+                    isEditable ? 'hover:border-gray-400 dark:hover:border-neutral-600 cursor-pointer' : 'cursor-default'
                   }`}
                   title={isEditable ? 'Rename document' : title}
                 >
@@ -188,9 +190,9 @@ const EditorNavbar = ({
               <ConnectionStatus status={connectionStatus} />
 
               {/* Save-to-Database Status Indicator (Auto-save) */}
-              <div className="flex items-center ml-1 text-xs text-gray-500 transition-opacity duration-300 ease-in-out">
+              <div className="flex items-center ml-1 text-xs text-gray-500 dark:text-gray-400 transition-opacity duration-300 ease-in-out">
                 {saveStatus === 'saving' && (
-                  <span className="flex items-center gap-1.5 text-blue-600 animate-in fade-in duration-200">
+                  <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 animate-in fade-in duration-200">
                     <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                     <span className="hidden sm:inline">Saving...</span>
                   </span>
@@ -199,16 +201,16 @@ const EditorNavbar = ({
                   <button
                     type="button"
                     onClick={onOpenVersionHistory}
-                    className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 transition cursor-pointer animate-in fade-in duration-300"
+                    className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition cursor-pointer animate-in fade-in duration-300"
                     title="All changes saved. Click to view version history"
                   >
-                    <CloudCheck className="w-4 h-4 text-gray-600 shrink-0" />
+                    <CloudCheck className="w-4 h-4 text-gray-600 dark:text-gray-300 shrink-0" />
                     <span className="hidden sm:inline">All changes saved</span>
                   </button>
                 )}
                 {saveStatus === 'unsaved' && (
                   <span
-                    className="flex items-center gap-1.5 text-amber-600 animate-in fade-in duration-200"
+                    className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 animate-in fade-in duration-200"
                     title="Unsaved changes (saving automatically in 1.5s, or press Ctrl+S)"
                   >
                     <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
@@ -217,7 +219,7 @@ const EditorNavbar = ({
                 )}
                 {saveStatus === 'offline' && (
                   <span
-                    className="flex items-center gap-1.5 text-rose-600 animate-in fade-in duration-200"
+                    className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400 animate-in fade-in duration-200"
                     title="Offline — changes will sync when reconnected"
                   >
                     <CloudOff className="w-4 h-4 shrink-0" />
@@ -277,6 +279,7 @@ const EditorNavbar = ({
               onToggleLineNumbers={onToggleLineNumbers}
               onProofread={onProofread}
               onOpenGrammarCheck={onOpenGrammarCheck}
+              onOpenAiAssistant={onOpenAiAssistant}
               isVoiceTyping={isVoiceTyping}
               onToggleVoiceTyping={onToggleVoiceTyping}
               onOpenCompare={onOpenCompare}
@@ -301,7 +304,9 @@ const EditorNavbar = ({
             type="button"
             onClick={onToggleToc}
             className={`p-1.5 rounded-full transition cursor-pointer ${
-              showToc ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
+              showToc
+                ? 'bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800'
             }`}
             title={showToc ? 'Hide document outline' : 'Show document outline'}
           >
@@ -313,11 +318,24 @@ const EditorNavbar = ({
             type="button"
             onClick={onToggleReadingMode}
             className={`p-1.5 rounded-full transition cursor-pointer ${
-              isReadingMode ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
+              isReadingMode
+                ? 'bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800'
             }`}
             title={isReadingMode ? 'Exit reading mode' : 'Reading mode'}
           >
             <BookOpen className="w-4 h-4" />
+          </button>
+
+          {/* Gemini AI Writing Assistant Quick Trigger Button */}
+          <button
+            type="button"
+            onClick={onOpenAiAssistant}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-xs transition text-xs font-bold cursor-pointer"
+            title="Gemini AI Assistant (Generate, Rephrase, Shift Tone, Summarize)"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+            <span className="hidden sm:inline">Ask AI</span>
           </button>
 
           {/* Active Collaborators Presence List */}
@@ -328,7 +346,7 @@ const EditorNavbar = ({
             <button
               onClick={onManualSave}
               disabled={saveStatus === 'saving'}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition focus:outline-none"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700 transition focus:outline-none cursor-pointer"
               title="Save changes (Ctrl+S)"
             >
               <Save className="w-3.5 h-3.5" />
@@ -342,8 +360,8 @@ const EditorNavbar = ({
             onClick={onToggleComments}
             className={`relative p-2 rounded-full transition cursor-pointer ${
               isCommentsOpen
-                ? 'bg-blue-100 text-blue-700'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800'
             }`}
             title="Open comments (Ctrl+Alt+M)"
           >
@@ -362,7 +380,7 @@ const EditorNavbar = ({
           <button
             type="button"
             onClick={onOpenShare}
-            className="flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-full bg-[#c2e7ff] text-[#001d35] hover:bg-[#b3dfff] hover:shadow-xs transition text-xs font-medium cursor-pointer"
+            className="flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-full bg-[#c2e7ff] dark:bg-blue-600 text-[#001d35] dark:text-white hover:bg-[#b3dfff] dark:hover:bg-blue-500 hover:shadow-xs transition text-xs font-semibold cursor-pointer"
             title="Share with people and groups"
           >
             <Lock className="w-3.5 h-3.5" />

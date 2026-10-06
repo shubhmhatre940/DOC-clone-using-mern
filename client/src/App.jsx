@@ -8,6 +8,8 @@ import SignupPage from './pages/SignupPage';
 import DashboardPage from './pages/DashboardPage';
 import EditorPage from './pages/EditorPage';
 
+import LandingPage from './pages/LandingPage';
+
 // Public Route wrapper (redirects to /dashboard if already authenticated)
 const PublicOnlyRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -16,8 +18,18 @@ const PublicOnlyRoute = ({ children }) => {
 };
 
 function AppRoutes() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <Routes>
+      {/* Public Landing Page */}
+      <Route
+        path="/"
+        element={
+          isAuthenticated ? <Navigate to="/dashboard" replace /> : <LandingPage />
+        }
+      />
+
       {/* Public Auth Routes */}
       <Route
         path="/login"
@@ -43,8 +55,7 @@ function AppRoutes() {
       </Route>
 
       {/* Default Redirection */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

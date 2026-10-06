@@ -110,16 +110,16 @@ const TemplateHeader = () => {
   const displayedTemplates = showAllTemplates ? filteredTemplates : filteredTemplates.slice(0, 4);
 
   return (
-    <section className="bg-[#f1f3f4] dark:bg-[#1e1f20] py-6 px-4 md:px-8 border-b border-gray-200 dark:border-[#2f3032] transition-colors">
+    <section className="bg-[#f1f3f4] dark:bg-[#191a1d] py-6 px-4 md:px-8 border-b border-gray-200 dark:border-neutral-800 transition-colors duration-200">
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200">Start a new document</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Start a new document</h2>
 
           {templates.length > 0 && (
             <button
               type="button"
               onClick={() => setShowAllTemplates((prev) => !prev)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition hover:bg-gray-200 dark:hover:bg-neutral-800 px-2 py-1 rounded cursor-pointer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition hover:bg-gray-200 dark:hover:bg-neutral-800 px-2.5 py-1 rounded-lg cursor-pointer"
             >
               <span>{showAllTemplates ? 'Hide template gallery' : 'Template gallery'}</span>
               {showAllTemplates ? (
@@ -142,7 +142,7 @@ const TemplateHeader = () => {
                 className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
                   selectedCategory === cat
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                    : 'bg-white dark:bg-[#232529] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 border border-gray-200 dark:border-neutral-700'
                 }`}
               >
                 {cat}
@@ -157,7 +157,7 @@ const TemplateHeader = () => {
             <button
               onClick={handleCreateBlank}
               disabled={creating || uploading}
-              className="group relative flex h-36 w-28 sm:h-44 sm:w-34 items-center justify-center rounded-md border border-gray-300 bg-white shadow-xs transition hover:border-[#1a73e8] hover:shadow-md focus:outline-none cursor-pointer disabled:opacity-60"
+              className="group relative flex h-36 w-28 sm:h-44 sm:w-34 items-center justify-center rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-[#222428] shadow-xs transition-all duration-200 hover:border-blue-600 dark:hover:border-blue-500 hover:shadow-md focus:outline-none cursor-pointer disabled:opacity-60"
             >
               {creating && !creatingTemplateId ? (
                 <div className="w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
@@ -165,7 +165,7 @@ const TemplateHeader = () => {
                 <div className="relative flex items-center justify-center">
                   {/* Google colored plus icon */}
                   <svg
-                    className="w-10 h-10 transition-transform group-hover:scale-110"
+                    className="w-10 h-10 transition-transform duration-200 group-hover:scale-110"
                     viewBox="0 0 40 40"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
@@ -178,7 +178,7 @@ const TemplateHeader = () => {
                 </div>
               )}
             </button>
-            <span className="mt-2 text-xs font-medium text-gray-800">Blank document</span>
+            <span className="mt-2 text-xs font-semibold text-gray-800 dark:text-gray-200">Blank document</span>
           </div>
 
           {/* 2. Upload Word Document (.docx) Card */}
@@ -190,19 +190,20 @@ const TemplateHeader = () => {
               accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               className="hidden"
             />
-            <div
+            <button
+              type="button"
               onClick={() => fileInputRef.current && fileInputRef.current.click()}
-              className="w-32 h-40 bg-white dark:bg-[#25272a] rounded-lg border border-gray-200 dark:border-[#383a3d] flex flex-col items-center justify-center transition-all hover:border-[#1a73e8] hover:shadow-md cursor-pointer"
+              className="group relative flex h-36 w-28 sm:h-44 sm:w-34 flex-col items-center justify-center rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-[#222428] transition-all duration-200 hover:border-blue-600 dark:hover:border-blue-500 hover:shadow-md cursor-pointer"
             >
               {uploading ? (
                 <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
               ) : (
-                <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-indigo-600 transition-transform group-hover:scale-110">
+                <div className="w-11 h-11 rounded-full bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 transition-transform duration-200 group-hover:scale-110">
                   <UploadCloud className="w-6 h-6" />
                 </div>
               )}
-            </div>
-            <span className="mt-2 text-xs font-medium text-gray-700 dark:text-gray-300">Import Word (.docx)</span>
+            </button>
+            <span className="mt-2 text-xs font-semibold text-gray-800 dark:text-gray-200">Import Word (.docx)</span>
           </div>
 
           {/* 3. Pre-formatted Template Cards */}
@@ -212,7 +213,7 @@ const TemplateHeader = () => {
                 type="button"
                 onClick={() => handleCreateFromTemplate(template)}
                 disabled={creating || uploading}
-                className="group relative flex h-36 w-28 sm:h-44 sm:w-34 items-center justify-center rounded-md border border-gray-300 bg-white shadow-xs transition hover:border-[#1a73e8] hover:shadow-md focus:outline-none cursor-pointer disabled:opacity-60 overflow-hidden"
+                className="group relative flex h-36 w-28 sm:h-44 sm:w-34 items-center justify-center rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-[#222428] shadow-xs transition-all duration-200 hover:border-blue-600 dark:hover:border-blue-500 hover:shadow-md focus:outline-none cursor-pointer disabled:opacity-60 overflow-hidden"
                 title={`Create from ${template.name} (${template.category || 'General'})`}
               >
                 {creatingTemplateId === template.id ? (
@@ -221,10 +222,10 @@ const TemplateHeader = () => {
                   <TemplatePreviewCard type={template.previewType || template.id} />
                 )}
               </button>
-              <span className="mt-2 text-xs font-medium text-gray-800 truncate max-w-[112px] sm:max-w-[136px]">
+              <span className="mt-2 text-xs font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[112px] sm:max-w-[136px]">
                 {template.name}
               </span>
-              <span className="text-[10px] text-gray-400 capitalize">
+              <span className="text-[10px] text-gray-400 dark:text-gray-500 capitalize font-medium">
                 {template.category}
               </span>
             </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useEditor, EditorContent, Extension } from '@tiptap/react';
+import { useEditor, EditorContent, Extension, Node } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
 import Underline from '@tiptap/extension-underline';
@@ -45,17 +45,55 @@ const BlockFormatting = Extension.create({
   }
 });
 
-// Enhanced TableCell supporting custom background color
+// Enhanced Audio Node Extension supporting direct audio playback in doc canvas
+const CustomAudio = Node.create({
+  name: 'audio',
+  group: 'block',
+  selectable: true,
+  draggable: true,
+  addAttributes() {
+    return {
+      src: {
+        default: null,
+      },
+      controls: {
+        default: true,
+      }
+    };
+  },
+  parseHTML() {
+    return [
+      {
+        tag: 'audio',
+        getAttrs: (element) => ({
+          src: element.getAttribute('src')
+        })
+      }
+    ];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return [
+      'div',
+      { class: 'audio-embed-container my-3 p-2 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl inline-block shadow-xs select-none' },
+      ['p', { class: 'text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1.5' }, '🎵 Audio Clip'],
+      ['audio', { controls: true, src: HTMLAttributes.src, class: 'h-9 outline-none' }]
+    ];
+  }
+});
+
 const CustomTableCell = TableCell.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
       backgroundColor: {
         default: null,
-        parseHTML: (element) => element.style.backgroundColor || null,
+        parseHTML: (element) => element.style.backgroundColor || element.getAttribute('data-bg-color') || null,
         renderHTML: (attributes) => {
           if (!attributes.backgroundColor) return {};
-          return { style: `background-color: ${attributes.backgroundColor};` };
+          return {
+            style: `background-color: ${attributes.backgroundColor} !important;`,
+            'data-bg-color': attributes.backgroundColor
+          };
         }
       }
     };
@@ -159,7 +197,8 @@ const TiptapEditor = ({
     }),
     TableRow,
     TableHeader,
-    CustomTableCell
+    CustomTableCell,
+    CustomAudio
   ];
 
   // Attach Yjs collaboration if ydoc is provided
@@ -378,8 +417,17 @@ const TiptapEditor = ({
         />
       )}
 
-      {/* Google Docs Formatting Toolbar (Toggleable from View menu) */}
-      {showToolbar && !isReadingMode && <EditorToolbar editor={editor} editable={isEditable} />}
+      {/* Google Docs / MS Word Formatting Ribbon Toolbar (Toggleable from View menu) */}
+      {showToolbar && !isReadingMode && (
+        <EditorToolbar
+          editor={editor}
+          editable={isEditable}
+          onOpenGrammarCheck={onCloseHeaderFooter?.onOpenGrammarCheck || pageSettings?.onOpenGrammarCheck}
+          onOpenWordCount={pageSettings?.onOpenWordCount}
+          onOpenTableModal={pageSettings?.onOpenTableModal}
+          onOpenImageModal={pageSettings?.onOpenImageModal}
+        />
+      )}
 
       {/* Editor Canvas Area with Page Layout (Pageless vs Paginated, Orientation, Headers/Footers, Page Numbers) */}
       <PageLayoutContainer

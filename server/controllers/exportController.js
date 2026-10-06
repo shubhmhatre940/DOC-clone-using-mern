@@ -133,7 +133,7 @@ export const exportDocument = async (req, res) => {
       }
 
       case 'docx': {
-        // html-to-docx expects the body HTML content directly
+        // html-to-docx expects HTML content and options
         let docHtml = content && content.trim() ? content : '<p></p>';
         // Replace page break divs with page-break-before style for Word
         docHtml = docHtml.replace(/<div class="page-break"[^>]*><\/div>/gi, '<br style="page-break-before: always; clear: both;" />');
@@ -143,25 +143,10 @@ export const exportDocument = async (req, res) => {
           margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 } // 1 inch = 1440 twips
         });
 
-        let docxBuffer = Buffer.from(rawDocx);
-
-        // Ensure ECMA-376 schema validity by positioning <w:sectPr> at the end of <w:body>
-        try {
-          const zip = await JSZip.loadAsync(docxBuffer);
-          let docXml = await zip.file('word/document.xml').async('text');
-          const sectPrMatch = docXml.match(/<w:sectPr>[\s\S]*?<\/w:sectPr>/);
-          if (sectPrMatch) {
-            docXml = docXml.replace(sectPrMatch[0], '');
-            docXml = docXml.replace('</w:body>', sectPrMatch[0] + '</w:body>');
-            zip.file('word/document.xml', docXml);
-            docxBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-          }
-        } catch (zipErr) {
-          console.warn('[DOCX Post-process]:', zipErr.message);
-        }
+        const docxBuffer = Buffer.from(rawDocx);
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.docx"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.docx"; filename*=UTF-8''${encodeURIComponent(safeTitle)}.docx`);
         res.setHeader('Content-Length', docxBuffer.length);
         return res.end(docxBuffer);
       }
@@ -179,7 +164,7 @@ export const exportDocument = async (req, res) => {
         const hasFooter = !!footerText || (showPageNumbers && pageNumberPosition !== 'header-right');
         const displayHeaderFooter = hasHeader || hasFooter;
 
-        let headerTemplate = '<div></div>';
+        let headerTemplate = '<span></span>';
         if (hasHeader) {
           headerTemplate = `
             <div style="font-size: 9px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #5f6368; width: 100%; padding: 0 1in; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center;">
@@ -189,7 +174,7 @@ export const exportDocument = async (req, res) => {
           `;
         }
 
-        let footerTemplate = '<div></div>';
+        let footerTemplate = '<span></span>';
         if (hasFooter) {
           const isCenter = pageNumberPosition === 'footer-center';
           footerTemplate = `
@@ -203,11 +188,19 @@ export const exportDocument = async (req, res) => {
 
         const browser = await puppeteer.launch({
           headless: true,
-          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--font-render-hinting=none'
+          ]
         });
+
         try {
           const page = await browser.newPage();
-          await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+          await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
           const u8Array = await page.pdf({
             format: 'Letter',
             landscape: isLandscape,
@@ -215,19 +208,17 @@ export const exportDocument = async (req, res) => {
             headerTemplate,
             footerTemplate,
             margin: {
-              top: '1in',
+              top: displayHeaderFooter ? '1.2in' : '1in',
               right: '1in',
-              bottom: '1in',
+              bottom: displayHeaderFooter ? '1.2in' : '1in',
               left: '1in'
             },
             printBackground: true
           });
 
-          // Puppeteer page.pdf() returns Uint8Array; convert explicitly to Node Buffer
-          // and send with res.end() to avoid Express converting Uint8Array to a JSON object
           const pdfBuffer = Buffer.from(u8Array);
           res.setHeader('Content-Type', 'application/pdf');
-          res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.pdf"`);
+          res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.pdf"; filename*=UTF-8''${encodeURIComponent(safeTitle)}.pdf`);
           res.setHeader('Content-Length', pdfBuffer.length);
           return res.end(pdfBuffer);
         } finally {

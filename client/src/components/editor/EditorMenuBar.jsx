@@ -32,6 +32,7 @@ import {
   Settings,
   Sliders,
   SpellCheck,
+  Sparkles,
   GitCompare,
   Quote,
   SplitSquareVertical,
@@ -117,6 +118,7 @@ const EditorMenuBar = ({
   onToggleLineNumbers,
   onProofread,
   onOpenGrammarCheck,
+  onOpenAiAssistant,
   isVoiceTyping = false,
   onToggleVoiceTyping,
   onOpenCompare,
@@ -1881,6 +1883,21 @@ const EditorMenuBar = ({
 
         {activeMenu === 'Tools' && (
           <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-sm shadow-lg py-1.5 z-50 text-[13px] text-gray-800">
+            {/* Gemini AI Assistant */}
+            <button
+              type="button"
+              onClick={() => executeAction(onOpenAiAssistant)}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-blue-50 text-blue-700 font-bold transition text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                Gemini AI Writing Assistant
+              </span>
+              <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">AI</span>
+            </button>
+
+            <div className="my-1 border-t border-gray-200" />
+
             {/* Spelling and grammar check */}
             <button
               type="button"
@@ -2011,6 +2028,150 @@ const EditorMenuBar = ({
           </div>
         )}
       </div>
+
+      {/* Dynamic Table Tabs in Top Navbar (Appears seamlessly when inside a table) */}
+      {isInsideTable && (
+        <>
+          {/* Table Design Menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => handleMenuClick('TableDesign')}
+              onMouseEnter={() => handleMenuHover('TableDesign')}
+              className={`px-2 py-0.5 rounded font-semibold text-indigo-700 dark:text-indigo-400 hover:text-indigo-900 transition ${
+                activeMenu === 'TableDesign' ? 'bg-indigo-100 dark:bg-indigo-950' : 'hover:bg-indigo-50 dark:hover:bg-neutral-800'
+              }`}
+            >
+              Table Design
+            </button>
+
+            {activeMenu === 'TableDesign' && (
+              <div className="absolute left-0 top-full mt-1 w-56 bg-white dark:bg-[#1e2024] border border-gray-200 dark:border-neutral-800 rounded-sm shadow-lg py-1.5 z-50 text-[13px]">
+                <button
+                  type="button"
+                  onClick={() => executeAction(() => editor?.chain().focus().toggleHeaderRow().run())}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 transition text-left cursor-pointer"
+                >
+                  <Type className="w-4 h-4 text-blue-600" />
+                  Toggle Header Row
+                </button>
+
+                <div className="my-1 border-t border-gray-200 dark:border-neutral-800" />
+
+                <div className="px-3 py-1 text-[11px] font-medium text-gray-400 uppercase tracking-wider">
+                  Cell Shading
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 flex-wrap">
+                  {[
+                    { color: null, label: 'None', bg: 'bg-white border border-gray-300' },
+                    { color: '#e8f0fe', label: 'Soft Blue', bg: 'bg-blue-100' },
+                    { color: '#e6f4ea', label: 'Soft Green', bg: 'bg-emerald-100' },
+                    { color: '#fef7e0', label: 'Soft Yellow', bg: 'bg-amber-100' },
+                    { color: '#fce8e6', label: 'Soft Red', bg: 'bg-rose-100' },
+                    { color: '#f1f3f4', label: 'Gray', bg: 'bg-gray-200' }
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => executeAction(() => editor?.chain().focus().setCellAttribute('backgroundColor', item.color).run())}
+                      className={`w-6 h-6 rounded cursor-pointer transition hover:scale-110 shadow-2xs ${item.bg}`}
+                      title={item.label}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Table Layout Menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => handleMenuClick('TableLayout')}
+              onMouseEnter={() => handleMenuHover('TableLayout')}
+              className={`px-2 py-0.5 rounded font-semibold text-indigo-700 dark:text-indigo-400 hover:text-indigo-900 transition ${
+                activeMenu === 'TableLayout' ? 'bg-indigo-100 dark:bg-indigo-950' : 'hover:bg-indigo-50 dark:hover:bg-neutral-800'
+              }`}
+            >
+              Table Layout
+            </button>
+
+            {activeMenu === 'TableLayout' && (
+              <div className="absolute left-0 top-full mt-1 w-60 bg-white dark:bg-[#1e2024] border border-gray-200 dark:border-neutral-800 rounded-sm shadow-lg py-1.5 z-50 text-[13px]">
+                <button
+                  type="button"
+                  onClick={() => executeAction(() => editor?.chain().focus().addRowBefore().run())}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 transition text-left cursor-pointer"
+                >
+                  <Rows className="w-4 h-4 text-gray-500" />
+                  Insert Row Above
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeAction(() => editor?.chain().focus().addRowAfter().run())}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 transition text-left cursor-pointer"
+                >
+                  <Rows className="w-4 h-4 text-gray-500" />
+                  Insert Row Below
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeAction(() => editor?.chain().focus().addColumnBefore().run())}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 transition text-left cursor-pointer"
+                >
+                  <Columns className="w-4 h-4 text-gray-500" />
+                  Insert Column Left
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeAction(() => editor?.chain().focus().addColumnAfter().run())}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 transition text-left cursor-pointer"
+                >
+                  <Columns className="w-4 h-4 text-gray-500" />
+                  Insert Column Right
+                </button>
+
+                <div className="my-1 border-t border-gray-200 dark:border-neutral-800" />
+
+                <button
+                  type="button"
+                  onClick={() => executeAction(() => editor?.chain().focus().mergeOrSplit().run())}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 transition text-left cursor-pointer font-semibold text-blue-600"
+                >
+                  Merge / Split Cells
+                </button>
+
+                <div className="my-1 border-t border-gray-200 dark:border-neutral-800" />
+
+                <button
+                  type="button"
+                  onClick={() => executeAction(() => editor?.chain().focus().deleteRow().run())}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-rose-50 text-rose-600 transition text-left cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-500" />
+                  Delete Row
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeAction(() => editor?.chain().focus().deleteColumn().run())}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-rose-50 text-rose-600 transition text-left cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-500" />
+                  Delete Column
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeAction(() => editor?.chain().focus().deleteTable().run())}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-rose-100 text-rose-700 font-bold transition text-left cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-600" />
+                  Delete Table
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Passive Extensions button */}
       <button

@@ -20,6 +20,7 @@ import WordCountModal, { computeStats } from '../components/tools/WordCountModal
 import PreferencesModal from '../components/tools/PreferencesModal';
 import VoiceTypingWidget from '../components/tools/VoiceTypingWidget';
 import GrammarCheckWidget from '../components/tools/GrammarCheckWidget';
+import AiAssistantWidget from '../components/tools/AiAssistantWidget';
 import CompareModal from '../components/tools/CompareModal';
 import CitationsModal from '../components/tools/CitationsModal';
 import LinkModal from '../components/insert/LinkModal';
@@ -80,6 +81,7 @@ const EditorPage = () => {
   const [isReadingMode, setIsReadingMode] = useState(false);
   const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
   const [isGrammarCheckOpen, setIsGrammarCheckOpen] = useState(false);
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
 
   // Phase 5: Comments state
   const [comments, setComments] = useState([]);
@@ -678,9 +680,6 @@ const EditorPage = () => {
         pageNumberPosition: pageSettings.pageNumberPosition
       });
 
-      const safeTitle = (title || 'Untitled document').trim().replace(/[/\\?%*:|"<>]/g, '_');
-      const filename = `${safeTitle}.${format}`;
-
       const mimeTypeMap = {
         pdf: 'application/pdf',
         docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -689,10 +688,27 @@ const EditorPage = () => {
       };
       const expectedType = mimeTypeMap[format] || 'application/octet-stream';
 
-      // Axios returns a Blob when responseType is 'blob'
-      const blob = response.data instanceof Blob
+      let blob = response.data instanceof Blob
         ? response.data
         : new Blob([response.data], { type: expectedType });
+
+      // If server returned a JSON error blob
+      if (blob.type === 'application/json' || blob.type.includes('json')) {
+        const errorText = await blob.text();
+        try {
+          const parsed = JSON.parse(errorText);
+          alert(parsed.message || `Export to ${format.toUpperCase()} failed.`);
+        } catch {
+          alert(`Export to ${format.toUpperCase()} failed.`);
+        }
+        return;
+      }
+
+      // Re-wrap blob with exact expected MIME type if needed
+      blob = new Blob([blob], { type: expectedType });
+
+      const safeTitle = (title || 'Untitled document').trim().replace(/[/\\?%*:|"<>]/g, '_');
+      const filename = `${safeTitle}.${format}`;
 
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -706,7 +722,15 @@ const EditorPage = () => {
       }, 1000);
     } catch (err) {
       console.error(`Export failed for format ${format}:`, err);
-      alert(`Export to ${format.toUpperCase()} failed. Please try again.`);
+      let errMsg = `Export to ${format.toUpperCase()} failed. Please try again.`;
+      if (err.response?.data instanceof Blob && err.response.data.type.includes('json')) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed.message) errMsg = parsed.message;
+        } catch (_) {}
+      }
+      alert(errMsg);
     } finally {
       setExportLoadingFormat(null);
     }
@@ -784,6 +808,7 @@ const EditorPage = () => {
           onToggleReadingMode={() => setIsReadingMode((prev) => !prev)}
           onOpenActivityLog={() => setIsActivityLogOpen(true)}
           onOpenGrammarCheck={() => setIsGrammarCheckOpen((prev) => !prev)}
+          onOpenAiAssistant={() => setIsAiAssistantOpen((prev) => !prev)}
           // Menu bar props
           onMakeCopy={handleMakeCopy}
           onDelete={handleDelete}
@@ -864,8 +889,14 @@ const EditorPage = () => {
           onStartComment={handleStartComment}
           isReadingMode={isReadingMode}
           onExitReadingMode={() => setIsReadingMode(false)}
-          // Page layout features
-          pageSettings={pageSettings}
+          // Page layout & ribbon action handlers
+          pageSettings={{
+            ...pageSettings,
+            onOpenGrammarCheck: () => setIsGrammarCheckOpen(true),
+            onOpenWordCount: () => setIsWordCountOpen(true),
+            onOpenTableModal: () => setIsTableModalOpen(true),
+            onOpenImageModal: () => setIsImageModalOpen(true)
+          }}
           onUpdatePageSettings={handleUpdatePageSettings}
           isEditingHeaderFooter={isEditingHeaderFooter}
           onCloseHeaderFooter={() => setIsEditingHeaderFooter(false)}
@@ -946,6 +977,13 @@ const EditorPage = () => {
         editor={editor}
         isOpen={isGrammarCheckOpen && !isFocusMode}
         onClose={() => setIsGrammarCheckOpen(false)}
+      />
+
+      {/* Gemini Smart AI Writing Assistant */}
+      <AiAssistantWidget
+        editor={editor}
+        isOpen={isAiAssistantOpen && !isFocusMode}
+        onClose={() => setIsAiAssistantOpen(false)}
       />
 
       {/* Google Docs Share Modal */}
