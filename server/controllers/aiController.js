@@ -36,13 +36,30 @@ export const processAiAction = async (req, res) => {
       userPrompt = prompt || text;
     }
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: userPrompt,
-      config: {
-        systemInstruction
+    // Try gemini-2.5-flash, gemini-2.0-flash, or gemini-1.5-flash
+    const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash'];
+    let response = null;
+    let lastErr = null;
+
+    for (const modelName of candidateModels) {
+      try {
+        response = await ai.models.generateContent({
+          model: modelName,
+          contents: userPrompt,
+          config: {
+            systemInstruction
+          }
+        });
+        if (response && response.text) break;
+      } catch (err) {
+        lastErr = err;
+        console.warn(`[AI Controller] Model ${modelName} failed, trying next fallback...`);
       }
-    });
+    }
+
+    if (!response) {
+      throw lastErr || new Error('No working Gemini model found.');
+    }
 
     const resultText = response.text || '';
 
