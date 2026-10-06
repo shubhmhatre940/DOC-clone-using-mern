@@ -36,8 +36,8 @@ export const processAiAction = async (req, res) => {
       userPrompt = prompt || text;
     }
 
-    // Try gemini-2.5-flash, gemini-2.0-flash, or gemini-1.5-flash
-    const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash'];
+    // Standard active Gemini models
+    const candidateModels = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
     let response = null;
     let lastErr = null;
 
@@ -53,7 +53,7 @@ export const processAiAction = async (req, res) => {
         if (response && response.text) break;
       } catch (err) {
         lastErr = err;
-        console.warn(`[AI Controller] Model ${modelName} failed, trying next fallback...`);
+        console.warn(`[AI Controller] Model ${modelName} failed (${err.message}), trying next fallback...`);
       }
     }
 
