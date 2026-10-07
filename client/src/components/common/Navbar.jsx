@@ -10,16 +10,33 @@ import {
   User,
   FileText,
   Sun,
-  Moon
+  Moon,
+  Command
 } from 'lucide-react';
 import NotificationBell from '../notifications/NotificationBell';
 
-const Navbar = ({ searchQuery, setSearchQuery }) => {
+const Navbar = ({ searchQuery, setSearchQuery, onToggleSidebar }) => {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const searchInputRef = useRef(null);
   const navigate = useNavigate();
+
+  // Handle Ctrl+K or / search focus shortcut
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        if (searchInputRef.current) searchInputRef.current.focus();
+      } else if (e.key === '/' && document.activeElement !== searchInputRef.current && document.activeElement.tagName !== 'INPUT') {
+        e.preventDefault();
+        if (searchInputRef.current) searchInputRef.current.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -47,98 +64,113 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-gray-200 dark:border-[#2e2f33] bg-white dark:bg-[#1e1f20] px-4 md:px-6 transition-colors">
-      {/* Left: Hamburger & Google Docs Branding */}
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200/80 dark:border-neutral-800 bg-white/95 dark:bg-[#1e2024]/95 backdrop-blur-md px-4 md:px-6 transition-colors duration-200">
+      {/* Left: Sidebar Toggle & Branding */}
       <div className="flex items-center gap-3">
         <button
           type="button"
-          className="rounded-full p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition focus:outline-none"
-          title="Main menu"
+          onClick={onToggleSidebar}
+          className="rounded-xl p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-neutral-800 transition focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer"
+          title="Toggle Navigation Menu"
         >
           <Menu className="w-5 h-5" />
         </button>
 
         <div
           onClick={() => navigate('/dashboard')}
-          className="flex items-center gap-2 cursor-pointer select-none"
+          className="flex items-center gap-2.5 cursor-pointer select-none group"
         >
-          <div className="w-9 h-10 bg-[#2684fc] rounded flex items-center justify-center text-white shadow-sm">
-            <FileText className="w-6 h-6" />
+          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-sm group-hover:bg-blue-700 transition">
+            <FileText className="w-5 h-5" />
           </div>
-          <span className="text-xl font-medium tracking-tight text-gray-700 dark:text-gray-200 hidden sm:inline">
-            Docs
-          </span>
+          <div className="flex flex-col">
+            <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white leading-none">
+              DocFusion
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">Workspace</span>
+          </div>
         </div>
       </div>
 
-      {/* Middle: Google Docs Search Bar */}
-      <div className="flex-1 max-w-2xl px-4">
+      {/* Middle: Unified Search Bar with Shortcut hint */}
+      <div className="flex-1 max-w-xl px-4">
         <div className="relative flex items-center w-full">
-          <div className="absolute left-3.5 flex items-center pointer-events-none text-gray-500 dark:text-gray-400">
-            <Search className="w-5 h-5" />
+          <div className="absolute left-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+            <Search className="w-4 h-4" />
           </div>
           <input
+            ref={searchInputRef}
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search"
-            className="w-full h-11 pl-11 pr-10 rounded-full bg-[#f1f3f4] dark:bg-[#2a2b2e] text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 border border-transparent hover:bg-[#e8eaed] dark:hover:bg-[#333538] hover:shadow-xs focus:bg-white dark:focus:bg-[#1e1f20] focus:border-gray-200 dark:focus:border-neutral-700 focus:shadow-md focus:outline-none transition-all duration-200"
+            placeholder="Search documents or content..."
+            className="w-full h-10 pl-10 pr-16 rounded-xl bg-slate-100 dark:bg-[#27292d] text-xs font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 border border-transparent hover:bg-slate-200/70 dark:hover:bg-[#2f3237] focus:bg-white dark:focus:bg-[#1e2024] focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
           />
-          {searchQuery && (
+          {searchQuery ? (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-full hover:bg-gray-200 dark:hover:bg-neutral-700"
+              className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200 dark:hover:bg-neutral-700 transition"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
+          ) : (
+            <div className="absolute right-3 hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-200 dark:bg-neutral-800 text-[10px] font-mono text-slate-400 pointer-events-none">
+              <Command className="w-2.5 h-2.5" />
+              <span>K</span>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Right: Theme Toggle, Notifications & User Avatar Dropdown */}
+      {/* Right: Theme Toggle, Notifications & Avatar Dropdown */}
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Dark Mode Toggle */}
         <button
           type="button"
           onClick={toggleTheme}
-          className="rounded-full p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition focus:outline-none cursor-pointer"
+          className="rounded-xl p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-neutral-800 transition focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer"
           title={isDark ? 'Switch to Light mode' : 'Switch to Dark mode'}
         >
           {isDark ? (
-            <Sun className="w-5 h-5 text-amber-400 animate-in spin-in-90 duration-200" />
+            <Sun className="w-4.5 h-4.5 text-amber-400" />
           ) : (
-            <Moon className="w-5 h-5 text-gray-600 transition" />
+            <Moon className="w-4.5 h-4.5 text-slate-600" />
           )}
         </button>
 
         <NotificationBell />
 
+        {/* User Profile Avatar Dropdown */}
         <div className="relative flex items-center" ref={dropdownRef}>
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center justify-center w-9 h-9 rounded-full bg-purple-700 text-white font-medium text-sm hover:ring-4 hover:ring-purple-100 dark:hover:ring-purple-950 focus:outline-none transition"
-            title={`Google Account: ${user?.name || 'User'}`}
+            className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-semibold text-xs shadow-sm hover:ring-2 hover:ring-blue-500/40 focus:outline-none transition cursor-pointer"
+            title={`Account: ${user?.name || 'User'}`}
           >
             {getInitials(user?.name)}
           </button>
 
           {dropdownOpen && (
-            <div className="absolute right-0 top-12 w-72 rounded-2xl bg-white dark:bg-[#2a2b2e] p-4 shadow-xl border border-gray-100 dark:border-[#383a3d] z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex flex-col items-center pb-4 border-b border-gray-100 dark:border-[#383a3d] text-center">
-                <div className="flex items-center justify-center w-14 h-14 rounded-full bg-purple-700 text-white font-semibold text-lg mb-2 shadow-inner">
+            <div className="absolute right-0 top-12 w-64 rounded-2xl bg-white dark:bg-[#1e2024] p-4 shadow-xl border border-slate-200/80 dark:border-neutral-800 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-neutral-800">
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-600 text-white font-bold text-xs shrink-0">
                   {getInitials(user?.name)}
                 </div>
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{user?.name}</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-xs truncate">
+                    {user?.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{user?.email}</p>
+                </div>
               </div>
 
-              <div className="pt-3">
+              <div className="pt-2 space-y-1">
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                  className="w-full flex items-center gap-2.5 rounded-xl py-2 px-3 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
-                  Sign out
+                  <span>Sign out</span>
                 </button>
               </div>
             </div>

@@ -9,9 +9,11 @@ import {
   Star,
   FolderInput,
   RotateCcw,
-  AlertOctagon
+  AlertOctagon,
+  Copy
 } from 'lucide-react';
 import MoveToFolderModal from './MoveToFolderModal';
+import { showToast } from '../ui/Toast';
 
 const DocumentCard = ({
   doc,
@@ -46,22 +48,26 @@ const DocumentCard = ({
   }, [menuOpen]);
 
   const formatDate = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) return 'Recent';
     const date = new Date(dateString);
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
 
     if (isToday) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `Today ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     }
     return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  };
+
   const handleCardClick = () => {
-    if (isTrash) {
-      // In trash view, don't open directly
-      return;
-    }
+    if (isTrash) return;
     navigate(`/document/${doc._id}`);
   };
 
@@ -72,8 +78,13 @@ const DocumentCard = ({
       await onDelete(doc._id);
       setShowConfirm(false);
       setMenuOpen(false);
+      showToast(`Moved "${doc.title || 'Document'}" to trash`, 'info', {
+        label: 'Undo',
+        onClick: () => onRestore && onRestore(doc._id)
+      });
     } catch (err) {
       console.error('Move to trash failed:', err);
+      showToast('Failed to move document to trash', 'error');
     } finally {
       setDeleting(false);
     }
@@ -88,8 +99,10 @@ const DocumentCard = ({
       }
       setShowPermanentConfirm(false);
       setMenuOpen(false);
+      showToast('Permanently deleted document', 'success');
     } catch (err) {
       console.error('Permanent delete failed:', err);
+      showToast('Failed to delete document', 'error');
     } finally {
       setDeleting(false);
     }
@@ -102,8 +115,10 @@ const DocumentCard = ({
         await onRestore(doc._id);
       }
       setMenuOpen(false);
+      showToast(`Restored "${doc.title || 'Document'}"`, 'success');
     } catch (err) {
       console.error('Restore failed:', err);
+      showToast('Failed to restore document', 'error');
     }
   };
 
@@ -111,17 +126,23 @@ const DocumentCard = ({
     e.stopPropagation();
     if (onToggleStar) {
       onToggleStar(doc._id);
+      showToast(
+        doc.isStarred ? 'Removed from starred' : 'Added to starred',
+        'success'
+      );
     }
   };
 
-  // List View
+  // List View Column Row
   if (isListView) {
     return (
       <>
         <div
           onClick={handleCardClick}
-          className={`group flex items-center justify-between px-4 py-3 rounded-xl transition border-b border-gray-100 dark:border-neutral-800 ${
-            isTrash ? 'opacity-80 bg-gray-50/50 dark:bg-neutral-900/40' : 'hover:bg-blue-50/60 dark:hover:bg-neutral-800/80 cursor-pointer'
+          className={`group flex items-center justify-between px-4 py-3 rounded-xl transition-all border border-transparent hover:border-slate-200 dark:hover:border-neutral-800 ${
+            isTrash
+              ? 'opacity-75 bg-slate-50/50 dark:bg-neutral-900/40'
+              : 'hover:bg-blue-50/40 dark:hover:bg-[#1e2024] cursor-pointer'
           }`}
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -129,7 +150,7 @@ const DocumentCard = ({
               <button
                 type="button"
                 onClick={handleStarClick}
-                className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-700 transition text-gray-400 shrink-0"
+                className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-neutral-700 transition text-slate-400 shrink-0 cursor-pointer"
                 title={doc.isStarred ? 'Unstar document' : 'Star document'}
               >
                 <Star
@@ -142,27 +163,31 @@ const DocumentCard = ({
               </button>
             )}
 
-            <div className="text-blue-600 dark:text-blue-400 shrink-0">
-              <FileText className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+              <FileText className="w-4 h-4" />
             </div>
 
-            <div className="flex items-center gap-2 truncate">
-              <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
+            <div className="flex items-center gap-2 truncate min-w-0">
+              <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
                 {doc.title || 'Untitled document'}
               </span>
               {doc.folderId?.name && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 font-normal">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-slate-300 font-medium shrink-0">
                   {doc.folderId.name}
                 </span>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-8 text-xs text-gray-500 dark:text-gray-400">
-            <span className="hidden sm:inline">
-              {isShared ? doc.owner?.name || 'Collaborator' : 'me'}
-            </span>
-            <span className="w-24 text-right">
+          <div className="flex items-center gap-6 text-xs text-slate-500 dark:text-slate-400 shrink-0">
+            <div className="hidden sm:flex items-center gap-1.5 w-28">
+              <div className="w-5 h-5 rounded-full bg-indigo-600 text-white font-semibold text-[9px] flex items-center justify-center">
+                {getInitials(doc.owner?.name)}
+              </div>
+              <span className="truncate">{doc.owner?.name || 'Me'}</span>
+            </div>
+
+            <span className="w-28 text-right font-medium">
               {isTrash ? `Deleted ${formatDate(doc.deletedAt)}` : formatDate(doc.updatedAt)}
             </span>
 
@@ -170,21 +195,21 @@ const DocumentCard = ({
               <button
                 type="button"
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-600 dark:text-gray-300 transition cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-neutral-700 text-slate-500 dark:text-slate-400 transition cursor-pointer"
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 top-8 w-48 rounded-xl bg-white dark:bg-[#1e2024] p-1.5 shadow-xl border border-gray-200 dark:border-neutral-800 z-30">
+                <div className="absolute right-0 top-8 w-48 rounded-xl bg-white dark:bg-[#1e2024] p-1.5 shadow-xl border border-slate-200/80 dark:border-neutral-800 z-30 animate-in fade-in zoom-in-95 duration-100">
                   {isTrash ? (
                     <>
                       <button
                         onClick={handleRestore}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg text-left cursor-pointer"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg text-left cursor-pointer"
                       >
-                        <RotateCcw className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                        Restore document
+                        <RotateCcw className="w-4 h-4 text-emerald-500" />
+                        <span>Restore document</span>
                       </button>
                       <button
                         onClick={() => {
@@ -194,17 +219,17 @@ const DocumentCard = ({
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-left cursor-pointer"
                       >
                         <AlertOctagon className="w-4 h-4 text-rose-500" />
-                        Delete forever
+                        <span>Delete forever</span>
                       </button>
                     </>
                   ) : (
                     <>
                       <button
                         onClick={handleCardClick}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg text-left cursor-pointer"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-neutral-800 rounded-lg text-left cursor-pointer"
                       >
-                        <ExternalLink className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                        Open in editor
+                        <ExternalLink className="w-4 h-4 text-slate-400" />
+                        <span>Open in editor</span>
                       </button>
                       {!isShared && (
                         <button
@@ -212,10 +237,10 @@ const DocumentCard = ({
                             setMenuOpen(false);
                             setShowMoveModal(true);
                           }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg text-left cursor-pointer"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-neutral-800 rounded-lg text-left cursor-pointer"
                         >
-                          <FolderInput className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                          Move to folder
+                          <FolderInput className="w-4 h-4 text-slate-400" />
+                          <span>Move to folder</span>
                         </button>
                       )}
                       {!isShared && (
@@ -227,7 +252,7 @@ const DocumentCard = ({
                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-left cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4 text-rose-500" />
-                          Move to trash
+                          <span>Move to trash</span>
                         </button>
                       )}
                     </>
@@ -238,22 +263,22 @@ const DocumentCard = ({
           </div>
         </div>
 
-        {/* Soft Delete Modal */}
+        {/* Soft Delete Confirmation Modal */}
         {showConfirm && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1c1e22] p-6 shadow-2xl border border-gray-200 dark:border-neutral-800">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Move to trash?</h3>
-              <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-                "{doc.title || 'Untitled document'}" will be moved to the Trash. You can restore it anytime from the Trash tab.
+            <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1e2024] p-6 shadow-2xl border border-slate-200 dark:border-neutral-800">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Move to trash?</h3>
+              <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                "{doc.title || 'Untitled document'}" will be moved to Trash. You can restore it anytime.
               </p>
               <div className="mt-6 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowConfirm(false)}
-                  className="rounded-xl px-3.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                  className="rounded-xl px-3.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -261,7 +286,7 @@ const DocumentCard = ({
                   type="button"
                   onClick={handleSoftDelete}
                   disabled={deleting}
-                  className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-rose-700 transition disabled:opacity-60 cursor-pointer"
+                  className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition disabled:opacity-60 cursor-pointer"
                 >
                   {deleting ? 'Moving...' : 'Move to trash'}
                 </button>
@@ -273,19 +298,19 @@ const DocumentCard = ({
         {/* Permanent Delete Modal */}
         {showPermanentConfirm && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1c1e22] p-6 shadow-2xl border border-gray-200 dark:border-neutral-800">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Delete forever?</h3>
-              <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-                "{doc.title || 'Untitled document'}" will be permanently erased from the database. This action cannot be undone.
+            <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1e2024] p-6 shadow-2xl border border-slate-200 dark:border-neutral-800">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Delete forever?</h3>
+              <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                "{doc.title || 'Untitled document'}" will be permanently erased. This cannot be undone.
               </p>
               <div className="mt-6 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowPermanentConfirm(false)}
-                  className="rounded-xl px-3.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                  className="rounded-xl px-3.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-neutral-800 transition cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -293,7 +318,7 @@ const DocumentCard = ({
                   type="button"
                   onClick={handlePermanentDelete}
                   disabled={deleting}
-                  className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-rose-700 transition disabled:opacity-60 cursor-pointer"
+                  className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition disabled:opacity-60 cursor-pointer"
                 >
                   {deleting ? 'Deleting...' : 'Delete forever'}
                 </button>
@@ -302,7 +327,6 @@ const DocumentCard = ({
           </div>
         )}
 
-        {/* Move to folder modal */}
         <MoveToFolderModal
           isOpen={showMoveModal}
           onClose={() => setShowMoveModal(false)}
@@ -313,33 +337,33 @@ const DocumentCard = ({
     );
   }
 
-  // Grid View (Default Google Docs layout)
+  // Grid View Card
   return (
     <>
       <div
         onClick={handleCardClick}
-        className={`group flex flex-col rounded-2xl border border-gray-200/90 dark:border-neutral-800 bg-white dark:bg-[#1e2024] overflow-hidden transition-all duration-200 relative ${
+        className={`group flex flex-col rounded-2xl border border-slate-200/90 dark:border-neutral-800 bg-white dark:bg-[#1e2024] overflow-hidden transition-all duration-200 relative ${
           isTrash
-            ? 'opacity-80'
-            : 'hover:border-blue-600 dark:hover:border-blue-500 hover:shadow-md cursor-pointer'
+            ? 'opacity-75'
+            : 'hover:border-blue-500 dark:hover:border-blue-500 hover:-translate-y-0.5 hover:shadow-md cursor-pointer'
         }`}
       >
-        {/* Document Preview Area (Paper visual simulation) */}
-        <div className="relative h-44 bg-[#f8f9fa] dark:bg-[#18191c] border-b border-gray-100 dark:border-neutral-800 flex items-center justify-center overflow-hidden p-4">
-          {/* Top Left: Star Button & Shared Badge */}
+        {/* Document Thumbnail Preview Canvas */}
+        <div className="relative h-40 bg-slate-50 dark:bg-[#161719] border-b border-slate-100 dark:border-neutral-800 flex items-center justify-center overflow-hidden p-3">
+          {/* Top Left Badges */}
           <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5">
             {!isTrash && (
               <button
                 type="button"
                 onClick={handleStarClick}
-                className="p-1 rounded-full bg-white/90 dark:bg-neutral-800/90 shadow-xs hover:bg-white dark:hover:bg-neutral-800 text-gray-400 hover:text-amber-500 transition cursor-pointer"
+                className="p-1 rounded-full bg-white/90 dark:bg-neutral-800/90 shadow-xs hover:bg-white dark:hover:bg-neutral-800 text-slate-400 hover:text-amber-500 transition cursor-pointer"
                 title={doc.isStarred ? 'Starred' : 'Star'}
               >
                 <Star
                   className={`w-3.5 h-3.5 transition ${
                     doc.isStarred
                       ? 'fill-amber-400 text-amber-500'
-                      : 'text-gray-400 dark:text-gray-500'
+                      : 'text-slate-400 dark:text-slate-500'
                   }`}
                 />
               </button>
@@ -352,33 +376,34 @@ const DocumentCard = ({
             )}
           </div>
 
-          <div className="w-28 h-36 bg-white dark:bg-[#25272b] rounded shadow-xs border border-gray-200 dark:border-neutral-700 p-2.5 flex flex-col gap-1.5 transition-transform duration-200 group-hover:scale-105">
-            <div className="h-2 w-3/4 bg-gray-300 dark:bg-neutral-600 rounded-xs"></div>
-            <div className="h-1.5 w-full bg-gray-200 dark:bg-neutral-700 rounded-xs"></div>
-            <div className="h-1.5 w-5/6 bg-gray-200 dark:bg-neutral-700 rounded-xs"></div>
-            <div className="h-1.5 w-4/5 bg-gray-200 dark:bg-neutral-700 rounded-xs"></div>
-            <div className="h-1.5 w-full bg-gray-200 dark:bg-neutral-700 rounded-xs"></div>
-            <div className="h-1.5 w-2/3 bg-gray-200 dark:bg-neutral-700 rounded-xs"></div>
+          {/* Paper Canvas Graphic */}
+          <div className="w-28 h-36 bg-white dark:bg-[#25282e] rounded-lg shadow-xs border border-slate-200 dark:border-neutral-700 p-2.5 flex flex-col gap-1.5 transition-transform duration-200 group-hover:scale-105">
+            <div className="h-2 w-3/4 bg-slate-300 dark:bg-neutral-600 rounded"></div>
+            <div className="h-1.5 w-full bg-slate-200 dark:bg-neutral-700 rounded"></div>
+            <div className="h-1.5 w-5/6 bg-slate-200 dark:bg-neutral-700 rounded"></div>
+            <div className="h-1.5 w-4/5 bg-slate-200 dark:bg-neutral-700 rounded"></div>
+            <div className="h-1.5 w-full bg-slate-200 dark:bg-neutral-700 rounded"></div>
+            <div className="h-1.5 w-2/3 bg-slate-200 dark:bg-neutral-700 rounded"></div>
           </div>
         </div>
 
         {/* Card Footer */}
         <div className="p-3.5 bg-white dark:bg-[#1e2024] flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="text-blue-600 dark:text-blue-400 shrink-0">
-              <FileText className="w-4 h-4" />
+            <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+              <FileText className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0 flex-1">
               <h3
-                className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400"
                 title={doc.title}
               >
                 {doc.title || 'Untitled document'}
               </h3>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                 {isTrash
                   ? `Deleted ${formatDate(doc.deletedAt)}`
-                  : `Opened ${formatDate(doc.updatedAt)}`}
+                  : `Edited ${formatDate(doc.updatedAt)}`}
               </p>
             </div>
           </div>
@@ -387,22 +412,22 @@ const DocumentCard = ({
             <button
               type="button"
               onClick={() => setMenuOpen(!menuOpen)}
-              className="p-1 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 transition cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-neutral-700 transition cursor-pointer"
               title="More options"
             >
               <MoreVertical className="w-4 h-4" />
             </button>
 
             {menuOpen && (
-              <div className="absolute right-0 bottom-8 w-48 rounded-xl bg-white dark:bg-[#1e2024] p-1.5 shadow-xl border border-gray-200 dark:border-neutral-800 z-30">
+              <div className="absolute right-0 bottom-8 w-48 rounded-xl bg-white dark:bg-[#1e2024] p-1.5 shadow-xl border border-slate-200/80 dark:border-neutral-800 z-30 animate-in fade-in zoom-in-95 duration-100">
                 {isTrash ? (
                   <>
                     <button
                       onClick={handleRestore}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg text-left cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg text-left cursor-pointer"
                     >
-                      <RotateCcw className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      Restore document
+                      <RotateCcw className="w-4 h-4 text-emerald-500" />
+                      <span>Restore document</span>
                     </button>
                     <button
                       onClick={() => {
@@ -412,17 +437,17 @@ const DocumentCard = ({
                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-left cursor-pointer"
                     >
                       <AlertOctagon className="w-4 h-4 text-rose-500" />
-                      Delete forever
+                      <span>Delete forever</span>
                     </button>
                   </>
                 ) : (
                   <>
                     <button
                       onClick={handleCardClick}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg text-left cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-neutral-800 rounded-lg text-left cursor-pointer"
                     >
-                      <ExternalLink className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                      Open in editor
+                      <ExternalLink className="w-4 h-4 text-slate-400" />
+                      <span>Open in editor</span>
                     </button>
                     {!isShared && (
                       <button
@@ -430,10 +455,10 @@ const DocumentCard = ({
                           setMenuOpen(false);
                           setShowMoveModal(true);
                         }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg text-left cursor-pointer"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-neutral-800 rounded-lg text-left cursor-pointer"
                       >
-                        <FolderInput className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                        Move to folder
+                        <FolderInput className="w-4 h-4 text-slate-400" />
+                        <span>Move to folder</span>
                       </button>
                     )}
                     {!isShared && (
@@ -445,7 +470,7 @@ const DocumentCard = ({
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-left cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4 text-rose-500" />
-                        Move to trash
+                        <span>Move to trash</span>
                       </button>
                     )}
                   </>
@@ -459,19 +484,19 @@ const DocumentCard = ({
       {/* Confirmation Modals */}
       {showConfirm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1c1e22] p-6 shadow-2xl border border-gray-200 dark:border-neutral-800">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Move to trash?</h3>
-            <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-              "{doc.title || 'Untitled document'}" will be moved to the Trash. You can restore it anytime from the Trash tab.
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1e2024] p-6 shadow-2xl border border-slate-200 dark:border-neutral-800">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Move to trash?</h3>
+            <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+              "{doc.title || 'Untitled document'}" will be moved to Trash. You can restore it anytime.
             </p>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setShowConfirm(false)}
-                className="rounded-xl px-3.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                className="rounded-xl px-3.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-neutral-800 transition cursor-pointer"
               >
                 Cancel
               </button>
@@ -479,7 +504,7 @@ const DocumentCard = ({
                 type="button"
                 onClick={handleSoftDelete}
                 disabled={deleting}
-                className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-rose-700 transition disabled:opacity-60 cursor-pointer"
+                className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition disabled:opacity-60 cursor-pointer"
               >
                 {deleting ? 'Moving...' : 'Move to trash'}
               </button>
@@ -490,19 +515,19 @@ const DocumentCard = ({
 
       {showPermanentConfirm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1c1e22] p-6 shadow-2xl border border-gray-200 dark:border-neutral-800">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Delete forever?</h3>
-            <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-              "{doc.title || 'Untitled document'}" will be permanently erased from the database. This action cannot be undone.
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1e2024] p-6 shadow-2xl border border-slate-200 dark:border-neutral-800">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Delete forever?</h3>
+            <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+              "{doc.title || 'Untitled document'}" will be permanently erased. This cannot be undone.
             </p>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setShowPermanentConfirm(false)}
-                className="rounded-xl px-3.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                className="rounded-xl px-3.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-neutral-800 transition cursor-pointer"
               >
                 Cancel
               </button>
@@ -510,7 +535,7 @@ const DocumentCard = ({
                 type="button"
                 onClick={handlePermanentDelete}
                 disabled={deleting}
-                className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-rose-700 transition disabled:opacity-60 cursor-pointer"
+                className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition disabled:opacity-60 cursor-pointer"
               >
                 {deleting ? 'Deleting...' : 'Delete forever'}
               </button>
@@ -519,7 +544,6 @@ const DocumentCard = ({
         </div>
       )}
 
-      {/* Move to folder modal */}
       <MoveToFolderModal
         isOpen={showMoveModal}
         onClose={() => setShowMoveModal(false)}

@@ -46,11 +46,18 @@ A modern, full-featured **Google Docs clone** built with the **MERN stack** (Mon
 - **Version History**: Review chronological revisions, view auto-snapshots, and restore past versions.
 - **Activity Log & Notifications**: Track document edits, renames, permissions changes, and notifications.
 
-### 7. Dashboard & File Organization
-- **Google Docs File Picker**: Clean dashboard with search, grid/list view toggles, and sorting.
+### 7. Gemini AI Writing Assistant
+- **Rephrasing & Tone Adjustment**: Instantly rewrite text with Professional, Casual, Persuasive, Academic, or Concise tones.
+- **Auto-Summarization**: Generate bulleted HTML executive summaries of long selection ranges or whole documents.
+- **AI Document Generation**: Prompt Gemini to generate full, structured HTML documents directly into the editor.
+- **Model Fallbacks**: Automatic fallback handling across active Google Gemini Flash models (`gemini-3.1-flash-lite`, `gemini-2.5-flash-lite`, `gemini-3.8-flash`).
+
+### 8. Dashboard & File Organization
+- **Google Docs File Picker**: Modern dashboard with search, keyboard shortcuts (`Ctrl+K`), grid/list view toggles, and sorting options.
 - **Template Gallery**: Pre-built templates (Resume, Project Proposal, Meeting Notes, Newsletter, etc.) with category filtering.
 - **Folder Management**: Create folders and organize documents with drag-and-drop or menu actions.
 - **Starred & Trash**: Quick-access starred documents and soft-delete trash bin with restore and permanent delete capabilities.
+- **Toast Notifications**: Built-in interactive notifications with Undo actions.
 
 ---
 
@@ -224,10 +231,8 @@ DOCS_mern/
 - `POST /api/documents/:id/versions` — Create a named version
 - `POST /api/documents/:id/versions/:versionId/restore` — Rollback document to revision
 
-### Comments (`/api/documents/:id/comments`)
-- `GET /api/documents/:id/comments` — Get document comments
-- `POST /api/documents/:id/comments` — Add comment or reply
-- `PATCH /api/documents/:id/comments/:commentId` — Resolve/edit comment
+### Gemini AI Assistant (`/api/ai`)
+- `POST /api/ai/process` — Process AI text rephrasing, tone shift, summary, or document generation using Google GenAI
 
 ---
 

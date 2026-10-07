@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createDocument, uploadDocument, getTemplates } from '../../api/documents';
 import TemplatePreviewCard from './TemplatePreviewCard';
-import { Plus, UploadCloud, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, UploadCloud, Loader2, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { showToast } from '../ui/Toast';
 
 const TemplateHeader = () => {
   const [creating, setCreating] = useState(false);
   const [creatingTemplateId, setCreatingTemplateId] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showAllTemplates, setShowAllTemplates] = useState(false);
@@ -36,10 +36,11 @@ const TemplateHeader = () => {
         title: template.defaultTitle || template.name || 'Untitled document',
         content: template.content || ''
       });
+      showToast(`Created document from ${template.name}`, 'success');
       navigate(`/document/${newDoc._id}`);
     } catch (err) {
       console.error('Failed to create document from template:', err);
-      alert('Could not create document from template. Please try again.');
+      showToast('Could not create document from template', 'error');
     } finally {
       setCreating(false);
       setCreatingTemplateId(null);
@@ -51,10 +52,11 @@ const TemplateHeader = () => {
     try {
       setCreating(true);
       const newDoc = await createDocument({ title: 'Untitled document', content: '' });
+      showToast('New document created', 'success');
       navigate(`/document/${newDoc._id}`);
     } catch (err) {
       console.error('Failed to create new document:', err);
-      alert('Could not create a new document. Please try again.');
+      showToast('Could not create document', 'error');
     } finally {
       setCreating(false);
     }
@@ -64,34 +66,23 @@ const TemplateHeader = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Client-side extension validation
     if (!file.name.toLowerCase().endsWith('.docx')) {
-      alert('Could not read this file — please make sure it is a valid .docx file.');
+      showToast('Please select a valid .docx document', 'error');
       e.target.value = '';
       return;
     }
 
     try {
       setUploading(true);
-      setUploadError(null);
       const formData = new FormData();
       formData.append('file', file);
 
-      console.log('[Frontend Upload] Preparing to upload file:', file.name, 'size:', file.size);
-      for (const [key, value] of formData.entries()) {
-        console.log(`[Frontend Upload FormData] key: "${key}", value:`, value);
-      }
-
       const createdDoc = await uploadDocument(formData);
-      console.log('[Frontend Upload] Successfully created doc:', createdDoc?._id);
+      showToast(`Imported ${file.name}`, 'success');
       navigate(`/document/${createdDoc._id}`);
     } catch (err) {
       console.error('Failed to upload docx file:', err);
-      const serverMsg = err.response?.data?.message;
-      const networkMsg = err.message;
-      const errMsg = serverMsg || (networkMsg ? `Upload failed: ${networkMsg}` : 'Could not read this file — please make sure it is a valid .docx file.');
-      setUploadError(errMsg);
-      alert(errMsg);
+      showToast('Could not import Word document', 'error');
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -106,20 +97,23 @@ const TemplateHeader = () => {
     ? templates
     : templates.filter((t) => t.category === selectedCategory);
 
-  // In collapsed mode, display up to 4 templates; when expanded, display all matching category
   const displayedTemplates = showAllTemplates ? filteredTemplates : filteredTemplates.slice(0, 4);
 
   return (
-    <section className="bg-[#f1f3f4] dark:bg-[#191a1d] py-6 px-4 md:px-8 border-b border-gray-200 dark:border-neutral-800 transition-colors duration-200">
-      <div className="max-w-5xl mx-auto">
+    <section className="bg-slate-100/70 dark:bg-[#161719] py-6 px-4 md:px-8 border-b border-slate-200/80 dark:border-neutral-800 transition-colors duration-200">
+      <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Start a new document</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Start a new document
+            </h2>
+          </div>
 
           {templates.length > 0 && (
             <button
               type="button"
               onClick={() => setShowAllTemplates((prev) => !prev)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition hover:bg-gray-200 dark:hover:bg-neutral-800 px-2.5 py-1 rounded-lg cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition hover:bg-blue-50 dark:hover:bg-blue-950/40 px-3 py-1.5 rounded-xl cursor-pointer"
             >
               <span>{showAllTemplates ? 'Hide template gallery' : 'Template gallery'}</span>
               {showAllTemplates ? (
@@ -131,7 +125,7 @@ const TemplateHeader = () => {
           )}
         </div>
 
-        {/* Category Filters (visible when expanded) */}
+        {/* Category Filters (visible when gallery expanded) */}
         {showAllTemplates && categories.length > 1 && (
           <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
             {categories.map((cat) => (
@@ -142,7 +136,7 @@ const TemplateHeader = () => {
                 className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
                   selectedCategory === cat
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-white dark:bg-[#232529] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 border border-gray-200 dark:border-neutral-700'
+                    : 'bg-white dark:bg-[#202226] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-neutral-800 border border-slate-200 dark:border-neutral-700'
                 }`}
               >
                 {cat}
@@ -157,31 +151,22 @@ const TemplateHeader = () => {
             <button
               onClick={handleCreateBlank}
               disabled={creating || uploading}
-              className="group relative flex h-36 w-28 sm:h-44 sm:w-34 items-center justify-center rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-[#222428] shadow-xs transition-all duration-200 hover:border-blue-600 dark:hover:border-blue-500 hover:shadow-md focus:outline-none cursor-pointer disabled:opacity-60"
+              className="group relative flex h-36 w-28 sm:h-44 sm:w-34 items-center justify-center rounded-2xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#1e2024] shadow-xs transition-all duration-200 hover:-translate-y-1 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md focus:outline-none cursor-pointer disabled:opacity-60"
             >
               {creating && !creatingTemplateId ? (
-                <div className="w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
               ) : (
-                <div className="relative flex items-center justify-center">
-                  {/* Google colored plus icon */}
-                  <svg
-                    className="w-10 h-10 transition-transform duration-200 group-hover:scale-110"
-                    viewBox="0 0 40 40"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path d="M20 8V32" stroke="#4285F4" strokeWidth="4" strokeLinecap="round" />
-                    <path d="M8 20H32" stroke="#EA4335" strokeWidth="4" strokeLinecap="round" />
-                    <path d="M20 8V20H8" stroke="#FBBC05" strokeWidth="4" strokeLinecap="round" />
-                    <path d="M20 20H32V32" stroke="#34A853" strokeWidth="4" strokeLinecap="round" />
-                  </svg>
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform duration-200">
+                  <Plus className="w-7 h-7 stroke-[2.2]" />
                 </div>
               )}
             </button>
-            <span className="mt-2 text-xs font-semibold text-gray-800 dark:text-gray-200">Blank document</span>
+            <span className="mt-2 text-xs font-semibold text-slate-800 dark:text-slate-200">
+              Blank document
+            </span>
           </div>
 
-          {/* 2. Upload Word Document (.docx) Card */}
+          {/* 2. Import Word Document (.docx) */}
           <div className="flex flex-col items-start shrink-0">
             <input
               type="file"
@@ -193,17 +178,19 @@ const TemplateHeader = () => {
             <button
               type="button"
               onClick={() => fileInputRef.current && fileInputRef.current.click()}
-              className="group relative flex h-36 w-28 sm:h-44 sm:w-34 flex-col items-center justify-center rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-[#222428] transition-all duration-200 hover:border-blue-600 dark:hover:border-blue-500 hover:shadow-md cursor-pointer"
+              className="group relative flex h-36 w-28 sm:h-44 sm:w-34 flex-col items-center justify-center rounded-2xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#1e2024] shadow-xs transition-all duration-200 hover:-translate-y-1 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md cursor-pointer"
             >
               {uploading ? (
                 <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
               ) : (
-                <div className="w-11 h-11 rounded-full bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 transition-transform duration-200 group-hover:scale-110">
-                  <UploadCloud className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform duration-200">
+                  <UploadCloud className="w-6 h-6 stroke-[2]" />
                 </div>
               )}
             </button>
-            <span className="mt-2 text-xs font-semibold text-gray-800 dark:text-gray-200">Import Word (.docx)</span>
+            <span className="mt-2 text-xs font-semibold text-slate-800 dark:text-slate-200">
+              Import (.docx)
+            </span>
           </div>
 
           {/* 3. Pre-formatted Template Cards */}
@@ -213,19 +200,18 @@ const TemplateHeader = () => {
                 type="button"
                 onClick={() => handleCreateFromTemplate(template)}
                 disabled={creating || uploading}
-                className="group relative flex h-36 w-28 sm:h-44 sm:w-34 items-center justify-center rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-[#222428] shadow-xs transition-all duration-200 hover:border-blue-600 dark:hover:border-blue-500 hover:shadow-md focus:outline-none cursor-pointer disabled:opacity-60 overflow-hidden"
-                title={`Create from ${template.name} (${template.category || 'General'})`}
+                className="group relative flex h-36 w-28 sm:h-44 sm:w-34 items-center justify-center rounded-2xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-[#1e2024] shadow-xs transition-all duration-200 hover:-translate-y-1 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md focus:outline-none cursor-pointer disabled:opacity-60 overflow-hidden"
               >
                 {creatingTemplateId === template.id ? (
-                  <div className="w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                  <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
                 ) : (
                   <TemplatePreviewCard type={template.previewType || template.id} />
                 )}
               </button>
-              <span className="mt-2 text-xs font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[112px] sm:max-w-[136px]">
+              <span className="mt-2 text-xs font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[112px] sm:max-w-[136px]">
                 {template.name}
               </span>
-              <span className="text-[10px] text-gray-400 dark:text-gray-500 capitalize font-medium">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 capitalize font-medium">
                 {template.category}
               </span>
             </div>
@@ -237,4 +223,3 @@ const TemplateHeader = () => {
 };
 
 export default TemplateHeader;
-

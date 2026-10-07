@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/common/Navbar';
+import Sidebar from '../components/dashboard/Sidebar';
 import TemplateHeader from '../components/dashboard/TemplateHeader';
 import DocumentList from '../components/dashboard/DocumentList';
+import { ToastContainer } from '../components/ui/Toast';
+import { DocumentListSkeleton } from '../components/ui/Skeleton';
 import {
   getDocuments,
   deleteDocument,
@@ -11,7 +14,6 @@ import {
   searchDocuments
 } from '../api/documents';
 import { getFolders, createFolder, deleteFolder } from '../api/folders';
-import { Loader2 } from 'lucide-react';
 
 const DashboardPage = () => {
   const [ownedDocs, setOwnedDocs] = useState([]);
@@ -19,9 +21,10 @@ const DashboardPage = () => {
   const [starredDocs, setStarredDocs] = useState([]);
   const [trashDocs, setTrashDocs] = useState([]);
   const [folders, setFolders] = useState([]);
-  const [selectedFolderId, setSelectedFolderId] = useState(null); // null = all, or folder ID
+  const [selectedFolderId, setSelectedFolderId] = useState(null);
 
-  const [activeTab, setActiveTab] = useState('owned'); // 'owned' | 'shared' | 'starred' | 'trash'
+  const [activeTab, setActiveTab] = useState('owned');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState(null);
@@ -55,7 +58,7 @@ const DashboardPage = () => {
     fetchAllDocs();
   }, [fetchAllDocs]);
 
-  // Debounced backend search across document titles & content
+  // Debounced search
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults(null);
@@ -78,7 +81,6 @@ const DashboardPage = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Soft delete: move to trash
   const handleDeleteDocument = async (id) => {
     await deleteDocument(id);
     const deletedDoc = ownedDocs.find((d) => d._id === id);
@@ -92,7 +94,6 @@ const DashboardPage = () => {
     }
   };
 
-  // Restore soft-deleted document from trash
   const handleRestoreDocument = async (id) => {
     await restoreDocument(id);
     const restoredDoc = trashDocs.find((d) => d._id === id);
@@ -106,13 +107,11 @@ const DashboardPage = () => {
     }
   };
 
-  // Permanent delete from trash
   const handlePermanentDeleteDocument = async (id) => {
     await permanentDeleteDocument(id);
     setTrashDocs((prev) => prev.filter((d) => d._id !== id));
   };
 
-  // Toggle star
   const handleToggleStar = async (id) => {
     const res = await toggleStarDocument(id);
     const isNowStarred = res.isStarred;
@@ -139,7 +138,6 @@ const DashboardPage = () => {
     }
   };
 
-  // Move document to folder
   const handleMovedToFolder = (docId, newFolderId) => {
     setOwnedDocs((prev) =>
       prev.map((d) =>
@@ -151,46 +149,62 @@ const DashboardPage = () => {
           : d
       )
     );
-    // Refresh folder counts
     getFolders().then((f) => setFolders(f)).catch(console.error);
   };
 
-  // Create new folder
   const handleCreateFolder = async (name) => {
     const created = await createFolder({ name });
     setFolders((prev) => [...prev, { ...created, docCount: 0 }]);
     return created;
   };
 
-  // Delete folder
   const handleDeleteFolder = async (folderId) => {
     await deleteFolder(folderId);
     setFolders((prev) => prev.filter((f) => f._id !== folderId));
     if (selectedFolderId === folderId) {
       setSelectedFolderId(null);
     }
-    // Refresh owned docs as their folderId is now cleared to null
     const updated = await getDocuments({ type: 'owned' });
     setOwnedDocs(updated);
   };
 
   return (
-    <div className="min-h-screen bg-[#f9fbfd] dark:bg-[#141517] text-gray-900 dark:text-gray-100 flex flex-col transition-colors duration-200">
-      {/* Top Search & User Bar */}
-      <Navbar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+    <div className="min-h-screen bg-slate-50 dark:bg-[#121316] text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
+      <ToastContainer />
 
-      {/* Start a new document section (hidden when searching or viewing trash) */}
+      {/* Header Bar with Sidebar Trigger */}
+      <Navbar
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+      />
+
+      {/* Collapsible Sidebar Drawer */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        ownedDocsCount={ownedDocs.length}
+        sharedDocsCount={sharedDocs.length}
+        starredDocsCount={starredDocs.length}
+        trashDocsCount={trashDocs.length}
+        folders={folders}
+        selectedFolderId={selectedFolderId}
+        onSelectFolder={setSelectedFolderId}
+      />
+
+      {/* Template Bar */}
       {!searchQuery && activeTab !== 'trash' && <TemplateHeader />}
 
-      {/* Main Recent Documents List */}
-      <main className="flex-1 bg-[#f9fbfd] dark:bg-[#141517] transition-colors duration-200">
+      {/* Main Document Grid */}
+      <main className="flex-1 bg-slate-50 dark:bg-[#121316] transition-colors duration-200">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-24">
-            <Loader2 className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin mb-2" />
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Loading documents...</p>
+          <div className="max-w-6xl mx-auto px-4 md:px-8 py-10">
+            <DocumentListSkeleton count={5} />
           </div>
         ) : error ? (
-          <div className="max-w-md mx-auto my-12 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-sm text-center border border-rose-200 dark:border-rose-900/60">
+          <div className="max-w-md mx-auto my-12 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs font-medium text-center border border-rose-200 dark:border-rose-900/60">
             {error}
           </div>
         ) : (
