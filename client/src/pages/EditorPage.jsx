@@ -171,8 +171,10 @@ const EditorPage = () => {
   // Keep ref of latest state to prevent stale closures in shortcut handlers
   const titleRef = useRef(title);
   const contentRef = useRef(content);
-  titleRef.current = title;
-  contentRef.current = content;
+  useEffect(() => {
+    titleRef.current = title;
+    contentRef.current = content;
+  }, [title, content]);
 
   const currentUser = useMemo(() => {
     return {

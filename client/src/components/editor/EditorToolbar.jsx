@@ -57,8 +57,21 @@ const FONT_FAMILIES = [
   { label: 'Comic Sans MS', value: 'Comic Sans MS' }
 ];
 
+const parseFontSize = (sizeStr) => {
+  if (!sizeStr) return { val: 11, unit: 'pt' };
+  const str = String(sizeStr).trim();
+  const match = str.match(/^([\d.]+)\s*(pt|px|em|rem)?$/i);
+  if (match) {
+    const val = parseFloat(match[1]);
+    const unit = match[2] ? match[2].toLowerCase() : 'pt';
+    return { val: isNaN(val) ? 11 : val, unit };
+  }
+  const numeric = parseInt(str, 10);
+  return { val: isNaN(numeric) ? 11 : numeric, unit: 'pt' };
+};
+
 const STANDARD_FONT_SIZES = [
-  '8px', '9px', '10px', '11px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px', '72px'
+  '8pt', '9pt', '10pt', '11pt', '12pt', '14pt', '16pt', '18pt', '20pt', '24pt', '28pt', '32pt', '36pt', '48pt', '72pt'
 ];
 
 const EditorToolbar = ({ editor, editable = true }) => {
@@ -159,8 +172,9 @@ const EditorToolbar = ({ editor, editable = true }) => {
   // Handle font size change
   const getCurrentFontSize = () => {
     const size = editor.getAttributes('textStyle').fontSize;
-    if (!size) return '11px';
-    return size.endsWith('px') || size.endsWith('pt') ? size : `${size}px`;
+    if (!size) return '11pt';
+    const { val, unit } = parseFontSize(size);
+    return `${val}${unit}`;
   };
 
   const handleFontSizeChange = (e) => {
@@ -174,9 +188,9 @@ const EditorToolbar = ({ editor, editable = true }) => {
 
   const changeFontSizeBy = (delta) => {
     const currentSizeStr = getCurrentFontSize();
-    const numericVal = parseInt(currentSizeStr, 10) || 11;
-    const newSize = Math.max(6, Math.min(144, numericVal + delta));
-    editor.chain().focus().setFontSize(`${newSize}px`).run();
+    const { val, unit } = parseFontSize(currentSizeStr);
+    const newSize = Math.max(6, Math.min(144, Math.round(val + delta)));
+    editor.chain().focus().setFontSize(`${newSize}${unit}`).run();
   };
 
   // Handle text color selection
@@ -202,7 +216,9 @@ const EditorToolbar = ({ editor, editable = true }) => {
   const currentFontSize = getCurrentFontSize();
   const fontSizesToDisplay = STANDARD_FONT_SIZES.includes(currentFontSize)
     ? STANDARD_FONT_SIZES
-    : [...STANDARD_FONT_SIZES, currentFontSize].sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    : [...STANDARD_FONT_SIZES, currentFontSize].sort(
+        (a, b) => parseFontSize(a).val - parseFontSize(b).val
+      );
 
   const btnClass = (isActive = false, disabled = false) =>
     `p-1.5 rounded-lg transition flex items-center justify-center cursor-pointer shrink-0 ${

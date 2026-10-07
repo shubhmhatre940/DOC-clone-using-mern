@@ -60,7 +60,8 @@ import {
   Palette,
   ArrowLeftRight,
   Columns,
-  Rows
+  Rows,
+  Type
 } from 'lucide-react';
 
 const EditorMenuBar = ({

@@ -12,7 +12,7 @@ A modern, full-featured **Google Docs clone** built with the **MERN stack** (Mon
 - **Auto-Save & Status Indicators**: Seamless background persistence (`Saved to Drive`, `Saving...`, `Unsaved changes`).
 
 ### 2. Rich Text Editor & Google Docs Canvas
-- **TipTap Rich Text Engine**: Built on ProseMirror, featuring paragraph styles (Title, Subtitle, Headings 1–6), font families, font sizes, colors, highlights, alignments, lists (bulleted, numbered, checklist), indentations, and blockquotes.
+- **TipTap Rich Text Engine**: Built on ProseMirror, featuring paragraph styles (Title, Subtitle, Headings 1–6), font families, granular font size controls with standard point (`pt`) & pixel (`px`) unit parsing and seamless step increments/decrements, colors, highlights, alignments, lists (bulleted, numbered, checklist), indentations, and blockquotes.
 - **Google Paper Canvas**: Centered white document sheet with drop shadow (`shadow-md`) on light-gray canvas (`#f8f9fa`), with toggleable ruler and document outline sidebar.
 - **Reading & Viewing Modes**: Switch between **Editing**, **Suggesting**, and **Viewing** modes with dynamic permission-based controls.
 
@@ -24,7 +24,7 @@ A modern, full-featured **Google Docs clone** built with the **MERN stack** (Mon
 - **Page Numbers**: Insert page numbers in top/bottom corners with dynamic counting.
 
 ### 4. Word (.docx) Import & Multi-Format Export
-- **Word (.docx) Import**: Upload Word documents with automatic HTML conversion via Mammoth and seamless initial content seeding into Yjs.
+- **Word (.docx) Import**: Upload Word documents with automatic HTML conversion via Mammoth, intelligent typography & font size normalization (preserving standard pt/px formatting), and seamless initial content seeding into Yjs.
 - **Multi-Format Export**:
   - **PDF**: Pixel-perfect PDF generation via headless Puppeteer.
   - **Word (.docx)**: Clean `.docx` document generation via `html-to-docx`.
