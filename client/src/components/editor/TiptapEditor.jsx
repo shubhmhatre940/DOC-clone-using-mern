@@ -230,9 +230,8 @@ const TiptapEditor = ({
       content: !ydoc ? initialContent || '' : undefined,
       editorProps: {
         attributes: {
-          class: `focus:outline-none min-h-[850px] text-gray-800 ${
-            !isEditable ? 'cursor-default select-text' : ''
-          }`,
+          class: `focus:outline-none min-h-[850px] text-gray-800 ${!isEditable ? 'cursor-default select-text' : ''
+            }`,
           spellcheck: 'true'
         },
         handleKeyDown: (view, event) => {
@@ -445,6 +444,7 @@ const TiptapEditor = ({
         editor={editor}
         isEditingHeaderFooter={isEditingHeaderFooter}
         onCloseHeaderFooter={onCloseHeaderFooter}
+        showHeaderFooter={pageSettings.showHeaderFooter}
       >
         <EditorContent editor={editor} />
       </PageLayoutContainer>

@@ -116,7 +116,8 @@ const EditorPage = () => {
     headerText: '',
     footerText: '',
     showPageNumbers: false,
-    pageNumberPosition: 'footer-right'
+    pageNumberPosition: 'footer-right',
+    showHeaderFooter: false
   });
   const [isEditingHeaderFooter, setIsEditingHeaderFooter] = useState(false);
 
@@ -542,8 +543,12 @@ const EditorPage = () => {
     if (pageSettings.isPageless) {
       handleUpdatePageSettings({ isPageless: false });
     }
+    // Show header/footer bands when user explicitly opens editing via Format menu
+    if (!pageSettings.showHeaderFooter) {
+      handleUpdatePageSettings({ showHeaderFooter: true });
+    }
     setIsEditingHeaderFooter(true);
-  }, [pageSettings.isPageless, handleUpdatePageSettings]);
+  }, [pageSettings.isPageless, pageSettings.showHeaderFooter, handleUpdatePageSettings]);
 
   const handleInsertColumnBreak = useCallback(() => {
     editor?.chain().focus().insertColumnBreak().run();
@@ -663,9 +668,9 @@ const EditorPage = () => {
 
   const handleToggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => { });
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => { });
     }
   };
 
@@ -728,7 +733,7 @@ const EditorPage = () => {
           const text = await err.response.data.text();
           const parsed = JSON.parse(text);
           if (parsed.message) errMsg = parsed.message;
-        } catch (_) {}
+        } catch (_) { }
       }
       alert(errMsg);
     } finally {
